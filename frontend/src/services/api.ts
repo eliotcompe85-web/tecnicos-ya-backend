@@ -83,7 +83,13 @@ export const serviceRequestService = {
   },
 
   getAll: async (params?: any) => {
-    const response = await api.get('/service-requests', { params });
+    // Map status to status_filter to avoid conflict with FastAPI's status import
+    const mappedParams = params ? { ...params } : {};
+    if (mappedParams.status) {
+      mappedParams.status_filter = mappedParams.status;
+      delete mappedParams.status;
+    }
+    const response = await api.get('/service-requests', { params: mappedParams });
     return response.data;
   },
 
@@ -115,6 +121,16 @@ export const applicationService = {
 export const reviewService = {
   create: async (data: any) => {
     const response = await api.post('/reviews', data);
+    return response.data;
+  },
+
+  getUserReviews: async (userId: string) => {
+    const response = await api.get(`/reviews/user/${userId}`);
+    return response.data;
+  },
+
+  getPending: async () => {
+    const response = await api.get('/reviews/pending');
     return response.data;
   },
 };

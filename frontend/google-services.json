@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "798026804546",
+    "project_id": "tecnicos-ya-426c8",
+    "storage_bucket": "tecnicos-ya-426c8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:798026804546:android:2d8587477bcf1a8f31acdb",
+        "android_client_info": {
+          "package_name": "com.tecnicoya.tecnico"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA7llT-ZJ-vIFP7qPg6DkeoarYMFCD4MKg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -67,8 +67,11 @@ export default function TechnicianProfileScreen() {
           <Text style={styles.membershipText}>
             ¡Primer mes gratis! Tu membresía de $5,500/mes comenzará el próximo mes.
           </Text>
-          <TouchableOpacity style={styles.upgradeButton}>
-            <Text style={styles.upgradeButtonText}>Actualizar a Premium</Text>
+          <TouchableOpacity 
+            style={styles.upgradeButton}
+            onPress={() => router.push('/technician/membership')}
+          >
+            <Text style={styles.upgradeButtonText}>Ver Planes y Membresía Premium</Text>
             <Ionicons name="arrow-forward" size={16} color={Colors.accent} />
           </TouchableOpacity>
         </View>
