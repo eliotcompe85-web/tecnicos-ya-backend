@@ -397,6 +397,21 @@ async def create_application(
         if not profile.get("is_first_month_free", False):
             raise HTTPException(status_code=403, detail="Tu membresía ha expirado. Por favor, renueva para aplicar a trabajos.")
     
+    # Verify service request exists and is open
+    sr = await service_requests_collection.find_one({"_id": to_oid(application_data.service_request_id)})
+    if not sr:
+        raise HTTPException(status_code=404, detail="Solicitud de servicio no encontrada")
+    if sr.get("status") != "open":
+        raise HTTPException(status_code=400, detail="Esta solicitud ya no acepta postulaciones")
+    
+    # Check if already applied
+    existing = await applications_collection.find_one({
+        "service_request_id": application_data.service_request_id,
+        "technician_id": current_user["sub"]
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="Ya postulaste a este trabajo")
+    
     app_dict = application_data.model_dump(exclude={"id"})
     app_dict["technician_id"] = current_user["sub"]
     app_dict["status"] = "pending"
@@ -597,7 +612,19 @@ async def get_pending_reviews(current_user: dict = Depends(get_current_user)):
 # ==================== VISIT ROUTES ====================
 @api_router.post("/visits")
 async def create_visit(visit_data: Visit, current_user: dict = Depends(get_current_user)):
+    # Only clients can create visits (they're the ones paying)
+    if current_user["role"] != "client":
+        raise HTTPException(status_code=403, detail="Solo clientes pueden crear visitas")
+    
+    # Verify service request exists and belongs to this client
+    sr = await service_requests_collection.find_one({"_id": to_oid(visit_data.service_request_id)})
+    if not sr:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    if sr["client_id"] != current_user["sub"]:
+        raise HTTPException(status_code=403, detail="No puedes crear una visita para una solicitud que no es tuya")
+    
     visit_dict = visit_data.model_dump(exclude={"id"})
+    visit_dict["client_id"] = current_user["sub"]  # Enforce from token
     visit_dict["created_at"] = datetime.utcnow()
     
     result = await visits_collection.insert_one(visit_dict)
