@@ -153,4 +153,48 @@ export const visitService = {
   },
 };
 
+// Payments (Stripe)
+export const paymentService = {
+  createMembershipCheckout: async (plan: 'basic' | 'premium', successUrl: string, cancelUrl: string) => {
+    const response = await api.post('/payments/membership/checkout', {
+      plan,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+    });
+    return response.data;
+  },
+
+  createVisitCheckout: async (visitId: string, successUrl: string, cancelUrl: string) => {
+    const response = await api.post('/payments/visit/checkout', {
+      visit_id: visitId,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+    });
+    return response.data;
+  },
+
+  getSessionStatus: async (sessionId: string) => {
+    const response = await api.get(`/payments/session/${sessionId}`);
+    return response.data;
+  },
+};
+
+// Availability (semáforo)
+export const availabilityService = {
+  update: async (status: 'available' | 'scheduling' | 'unavailable') => {
+    const response = await api.put('/technicians/availability', {
+      availability_status: status,
+    });
+    return response.data;
+  },
+};
+
+// Notifications
+export const notificationService = {
+  getAll: async () => {
+    const response = await api.get('/notifications');
+    return response.data;
+  },
+};
+
 export default api;

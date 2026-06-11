@@ -15,6 +15,8 @@ import { serviceRequestService } from '@/src/services/api';
 import { Colors } from '@/src/constants/colors';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { AdBanner } from '@/src/components/AdBanner';
+import { AvailabilityStatus } from '@/src/components/AvailabilityStatus';
 
 type ServiceRequest = {
   _id: string;
@@ -37,6 +39,7 @@ export default function TechnicianHomeScreen() {
   const router = useRouter();
   const [jobs, setJobs] = useState<ServiceRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [availability, setAvailability] = useState<'available' | 'scheduling' | 'unavailable'>('available');
 
   useEffect(() => {
     loadJobs();
@@ -45,7 +48,6 @@ export default function TechnicianHomeScreen() {
   const loadJobs = async () => {
     try {
       setIsLoading(true);
-      // TODO: Get technician location and pass it for distance calculation
       const data = await serviceRequestService.getAll({ status: 'open' });
       setJobs(data);
     } catch (error) {
@@ -70,6 +72,11 @@ export default function TechnicianHomeScreen() {
           <RefreshControl refreshing={isLoading} onRefresh={loadJobs} />
         }
       >
+        <AvailabilityStatus
+          currentStatus={availability}
+          onStatusChange={setAvailability}
+        />
+
         {jobs.length === 0 && !isLoading && (
           <View style={styles.emptyState}>
             <Ionicons name="briefcase-outline" size={64} color={Colors.disabled} />
@@ -133,6 +140,7 @@ export default function TechnicianHomeScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
+      <AdBanner />
     </SafeAreaView>
   );
 }

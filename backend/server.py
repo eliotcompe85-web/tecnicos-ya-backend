@@ -31,6 +31,9 @@ from database import (
     service_requests_collection, applications_collection, reviews_collection,
     visits_collection, payments_collection, init_db, close_db
 )
+from stripe_service import (
+    create_membership_checkout, create_visit_checkout, get_session_status
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -672,6 +675,249 @@ async def get_my_visits(current_user: dict = Depends(get_current_user)):
         visit["_id"] = str(visit["_id"])
     
     return visits
+
+# ==================== STRIPE PAYMENTS ====================
+from pydantic import BaseModel as PydBaseModel
+
+class MembershipCheckoutRequest(PydBaseModel):
+    plan: str  # "basic" or "premium"
+    success_url: str
+    cancel_url: str
+
+@api_router.post("/payments/membership/checkout")
+async def create_membership_checkout_endpoint(
+    body: MembershipCheckoutRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create Stripe Checkout session for technician membership"""
+    if current_user["role"] != "technician":
+        raise HTTPException(status_code=403, detail="Solo técnicos pueden contratar membresía")
+    
+    user = await users_collection.find_one({"_id": to_oid(current_user["sub"])})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    try:
+        result = create_membership_checkout(
+            user_email=user["email"],
+            plan=body.plan,
+            success_url=body.success_url,
+            cancel_url=body.cancel_url,
+            user_id=current_user["sub"],
+        )
+        
+        # Log payment intent
+        await payments_collection.insert_one({
+            "user_id": current_user["sub"],
+            "amount": 5500 if body.plan == "basic" else 15000,
+            "payment_type": "membership",
+            "status": "pending",
+            "stripe_session_id": result["session_id"],
+            "description": f"Membresía {body.plan}",
+            "created_at": datetime.utcnow(),
+        })
+        
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al crear sesión de pago: {str(e)}")
+
+
+class VisitCheckoutRequest(PydBaseModel):
+    visit_id: str
+    success_url: str
+    cancel_url: str
+
+@api_router.post("/payments/visit/checkout")
+async def create_visit_checkout_endpoint(
+    body: VisitCheckoutRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create Stripe Checkout session for a visit payment"""
+    if current_user["role"] != "client":
+        raise HTTPException(status_code=403, detail="Solo clientes pueden pagar visitas")
+    
+    visit = await visits_collection.find_one({"_id": to_oid(body.visit_id)})
+    if not visit:
+        raise HTTPException(status_code=404, detail="Visita no encontrada")
+    
+    if visit["client_id"] != current_user["sub"]:
+        raise HTTPException(status_code=403, detail="No puedes pagar esta visita")
+    
+    try:
+        result = create_visit_checkout(
+            amount_clp=int(visit["total_price"]),
+            visit_id=body.visit_id,
+            client_id=visit["client_id"],
+            technician_id=visit["technician_id"],
+            success_url=body.success_url,
+            cancel_url=body.cancel_url,
+        )
+        
+        # Log payment intent
+        await payments_collection.insert_one({
+            "user_id": current_user["sub"],
+            "amount": visit["total_price"],
+            "payment_type": "visit",
+            "status": "pending",
+            "stripe_session_id": result["session_id"],
+            "description": f"Pago de visita técnica",
+            "visit_id": body.visit_id,
+            "created_at": datetime.utcnow(),
+        })
+        
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al crear sesión de pago: {str(e)}")
+
+
+@api_router.get("/payments/session/{session_id}")
+async def get_payment_status(session_id: str, current_user: dict = Depends(get_current_user)):
+    """Check the status of a Stripe checkout session"""
+    try:
+        status_data = get_session_status(session_id)
+        
+        # Update payment record
+        if status_data["payment_status"] == "paid":
+            payment = await payments_collection.find_one({"stripe_session_id": session_id})
+            if payment and payment.get("status") != "completed":
+                await payments_collection.update_one(
+                    {"stripe_session_id": session_id},
+                    {"$set": {"status": "completed", "completed_at": datetime.utcnow()}}
+                )
+                
+                # Handle membership activation
+                if payment["payment_type"] == "membership":
+                    metadata = status_data["metadata"]
+                    plan = metadata.get("plan", "basic")
+                    await technician_profiles_collection.update_one(
+                        {"user_id": payment["user_id"]},
+                        {"$set": {
+                            "membership_type": plan,
+                            "membership_start_date": datetime.utcnow(),
+                            "membership_end_date": datetime.utcnow() + timedelta(days=30),
+                            "is_first_month_free": False,
+                        }}
+                    )
+                    # Unblock user if blocked
+                    await users_collection.update_one(
+                        {"_id": to_oid(payment["user_id"])},
+                        {"$set": {"is_blocked": False}}
+                    )
+                
+                # Handle visit payment
+                elif payment["payment_type"] == "visit" and payment.get("visit_id"):
+                    await visits_collection.update_one(
+                        {"_id": to_oid(payment["visit_id"])},
+                        {"$set": {"payment_status": "paid"}}
+                    )
+        
+        return status_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al verificar pago: {str(e)}")
+
+
+# ==================== TECHNICIAN AVAILABILITY ====================
+class AvailabilityUpdate(PydBaseModel):
+    availability_status: str  # "available", "scheduling", "unavailable"
+
+@api_router.put("/technicians/availability")
+async def update_availability(
+    body: AvailabilityUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update technician availability status (semáforo)"""
+    if current_user["role"] != "technician":
+        raise HTTPException(status_code=403, detail="Solo técnicos pueden actualizar disponibilidad")
+    
+    if body.availability_status not in ["available", "scheduling", "unavailable"]:
+        raise HTTPException(status_code=400, detail="Estado de disponibilidad inválido")
+    
+    await technician_profiles_collection.update_one(
+        {"user_id": current_user["sub"]},
+        {"$set": {"availability_status": body.availability_status}}
+    )
+    
+    return {"message": "Disponibilidad actualizada", "status": body.availability_status}
+
+
+# ==================== NOTIFICATIONS ====================
+@api_router.get("/notifications")
+async def get_notifications(current_user: dict = Depends(get_current_user)):
+    """Get user notifications based on their role and recent activity"""
+    notifications = []
+    user_id = current_user["sub"]
+    role = current_user["role"]
+    
+    if role == "client":
+        # Check for new applications on user's requests
+        my_requests = await service_requests_collection.find(
+            {"client_id": user_id, "status": "open"}
+        ).to_list(50)
+        
+        for req in my_requests:
+            apps = await applications_collection.find({
+                "service_request_id": str(req["_id"]),
+                "status": "pending"
+            }).to_list(50)
+            
+            if apps:
+                notifications.append({
+                    "type": "new_application",
+                    "title": f"Nueva postulación",
+                    "message": f"{len(apps)} técnico(s) postularon a '{req['title']}'",
+                    "request_id": str(req["_id"]),
+                    "count": len(apps),
+                })
+        
+        # Pending reviews
+        completed_visits = await visits_collection.find(
+            {"client_id": user_id, "status": "completed"}
+        ).to_list(50)
+        
+        for visit in completed_visits:
+            existing = await reviews_collection.find_one({
+                "visit_id": str(visit["_id"]),
+                "from_user_id": user_id
+            })
+            if not existing:
+                notifications.append({
+                    "type": "pending_review",
+                    "title": "Calificación pendiente",
+                    "message": "Tienes una visita por calificar",
+                    "visit_id": str(visit["_id"]),
+                })
+    
+    else:  # technician
+        # Check accepted applications
+        accepted = await applications_collection.find({
+            "technician_id": user_id,
+            "status": "accepted"
+        }).to_list(50)
+        
+        for app in accepted:
+            sr = await service_requests_collection.find_one({"_id": to_oid(app["service_request_id"])})
+            if sr:
+                notifications.append({
+                    "type": "application_accepted",
+                    "title": "¡Postulación aceptada!",
+                    "message": f"Tu postulación a '{sr['title']}' fue aceptada",
+                    "request_id": app["service_request_id"],
+                })
+        
+        # Membership warning
+        profile = await technician_profiles_collection.find_one({"user_id": user_id})
+        if profile and profile.get("membership_end_date"):
+            days_left = (profile["membership_end_date"] - datetime.utcnow()).days
+            if 0 < days_left <= 7:
+                notifications.append({
+                    "type": "membership_expiring",
+                    "title": "Membresía por vencer",
+                    "message": f"Tu membresía vence en {days_left} día(s)",
+                    "days_left": days_left,
+                })
+    
+    return {"notifications": notifications, "count": len(notifications)}
+
 
 # Include the router in the main app
 app.include_router(api_router)

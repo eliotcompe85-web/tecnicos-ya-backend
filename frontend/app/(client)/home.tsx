@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/src/context/AuthContext';
 import { categoryService } from '@/src/services/api';
 import { Colors } from '@/src/constants/colors';
+import { AdBanner } from '@/src/components/AdBanner';
 
 type ServiceCategory = {
   _id: string;
@@ -108,6 +109,7 @@ export default function ClientHomeScreen() {
           ))}
         </View>
       </ScrollView>
+      <AdBanner />
     </SafeAreaView>
   );
 }
