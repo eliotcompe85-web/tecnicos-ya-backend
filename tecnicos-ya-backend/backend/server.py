@@ -1,0 +1,176 @@
+import os
+import logging
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from starlette.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+from config import CORS_ORIGINS, logger
+from database import init_database, SessionLocal, Category
+from services.pricing import calcular_distancia_km, calcular_precio
+
+from routes.categories import router as categories_router
+from routes.auth_router import router as auth_router
+from routes.technicians import router as technicians_router
+from routes.visits import router as visits_router
+from routes.service_requests import router as service_requests_router
+from routes.applications import router as applications_router
+from routes.reviews import router as reviews_router
+from routes.payments import router as payments_router
+from routes.visits import router as visits_calc_router
+
+app = FastAPI(title="API Técnicos Ya V2", version="2.1")
+
+if os.getenv("DISABLE_RATE_LIMITS", "0") == "1":
+    class DummyLimiter:
+        def limit(self, *args, **kwargs):
+            def decorator(func):
+                return func
+            return decorator
+    limiter = DummyLimiter()
+    logger.warning("Rate limiting deshabilitado - solo para desarrollo local")
+else:
+    limiter = Limiter(key_func=get_remote_address)
+    logger.info("Rate limiting habilitado")
+
+app.state.limiter = limiter
+
+
+def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(status_code=429, content={"detail": "Demasiadas solicitudes. Intenta de nuevo en un momento."})
+
+
+app.add_exception_handler(RateLimitExceeded, rate_limit_exception_handler)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(categories_router)
+app.include_router(auth_router)
+app.include_router(technicians_router)
+app.include_router(visits_router)
+app.include_router(service_requests_router)
+app.include_router(applications_router)
+app.include_router(reviews_router)
+app.include_router(payments_router)
+
+# Legacy endpoint mapping for backward compatibility
+from fastapi import APIRouter
+legacy = APIRouter()
+
+
+@legacy.get("/api/visits/calculate-price")
+def calculate_price_legacy(
+    technician_id: int,
+    latitud_cliente: float,
+    longitud_cliente: float,
+    latitud_tecnico: float = None,
+    longitud_tecnico: float = None,
+):
+    from datetime import datetime
+    lat_t = latitud_tecnico if latitud_tecnico is not None else -33.8569
+    lon_t = longitud_tecnico if longitud_tecnico is not None else -70.9821
+    distancia = calcular_distancia_km(latitud_cliente, longitud_cliente, lat_t, lon_t)
+    precio = calcular_precio(distancia)
+    return {
+        "id": 1,
+        "fecha": datetime.now().isoformat(),
+        "distancia_km": distancia,
+        "precio_final": precio,
+        "technician_id": technician_id
+    }
+
+
+@legacy.get("/visits")
+def visits_legacy():
+    return []
+
+
+app.include_router(legacy)
+
+
+def normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def seed_categories(db: SessionLocal):
+    default_categories = [
+        {"name": "Eléctrico", "description": "Instalaciones y reparaciones eléctricas", "icon": "flash_on"},
+        {"name": "Gasfitería", "description": "Reparaciones y mantención de agua y gas", "icon": "water_drop"},
+        {"name": "Mecánico", "description": "Reparaciones y mantención mecánica", "icon": "build"},
+        {"name": "Carpintería", "description": "Trabajos en madera, muebles y estructuras", "icon": "carpenter"},
+        {"name": "Pintura", "description": "Pintura interior y exterior", "icon": "format_paint"},
+        {"name": "Refrigeración", "description": "Aire acondicionado y refrigeración", "icon": "ac_unit"},
+        {"name": "Jardinería", "description": "Mantención de jardines y áreas verdes", "icon": "yard"},
+        {"name": "Limpieza", "description": "Servicios de aseo y limpieza del hogar", "icon": "cleaning_services"},
+        {"name": "Tecnología", "description": "Soporte técnico y reparación de equipos", "icon": "computer"},
+        {"name": "Cerrajería", "description": "Apertura de cerraduras y duplicado de llaves", "icon": "key"},
+        {"name": "Mudanzas", "description": "Traslado de muebles y equipos", "icon": "local_shipping"},
+        {"name": "Construcción", "description": "Obras menores, albañilería y remodelaciones", "icon": "home_repair_service"},
+    ]
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        existing = db.query(Category).count()
+        if existing == 0:
+            for cat in default_categories:
+                db.add(Category(name=cat["name"], description=cat["description"], icon=cat["icon"]))
+            db.commit()
+        elif existing < 12:
+            existing_names = {c.name for c in db.query(Category).all()}
+            for cat in default_categories:
+                if cat["name"] not in existing_names:
+                    db.add(Category(name=cat["name"], description=cat["description"], icon=cat["icon"]))
+            db.commit()
+    finally:
+        db.close()
+
+
+def seed_test_users():
+    if os.getenv("SEED_TEST_USERS", "0") != "1":
+        return
+    from database import SessionLocal, User
+    from auth import hash_password
+    db = SessionLocal()
+    try:
+        logger.warning("Sembrando usuarios de prueba - deshabilita con SEED_TEST_USERS=0")
+        default_users = [
+            {"email": "cliente@test.com", "password": "test123", "full_name": "Cliente Test", "phone": "+56900000001", "role": "client"},
+            {"email": "tecnico@test.com", "password": "test123", "full_name": "Tecnico Test", "phone": "+56900000002", "role": "technician"},
+        ]
+        for u in default_users:
+            normalized_email = normalize_email(u["email"])
+            existing = db.query(User).filter(User.email == normalized_email).first()
+            if not existing:
+                db.add(User(
+                    email=normalized_email,
+                    full_name=u["full_name"],
+                    phone=u["phone"],
+                    role=u["role"],
+                    hashed_password=hash_password(u["password"]),
+                    is_verified=True,
+                ))
+        db.commit()
+    finally:
+        db.close()
+
+
+@app.on_event("startup")
+def startup():
+    logger.info("Inicializando base de datos...")
+    init_database()
+    seed_categories(SessionLocal)
+    seed_test_users()
+    logger.info("Aplicación iniciada correctamente")
+
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "version": "2.1"}

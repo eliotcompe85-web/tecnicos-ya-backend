@@ -1,0 +1,24 @@
+# Ignore node_modules as EAS will reinstall dependencies
+node_modules/
+
+# Ignore common directories
+.git/
+.gitignore
+.DS_Store
+*.log
+.env
+.env.local
+/android
+
+# Ignore build artifacts
+dist/
+build/
+.expo/
+.next/
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
