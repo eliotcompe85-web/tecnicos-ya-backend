@@ -110,7 +110,7 @@ export default function ClientRequestsScreen() {
             </TouchableOpacity>
           </View>
         )}
-
+        
         {requests.map((request) => (
           <TouchableOpacity
             key={request._id}
@@ -130,12 +130,12 @@ export default function ClientRequestsScreen() {
                 </Text>
               </View>
             </View>
-
+            
             <Text style={styles.categoryName}>{request.category_name}</Text>
             <Text style={styles.requestDescription} numberOfLines={2}>
               {request.description}
             </Text>
-
+            
             <View style={styles.requestFooter}>
               <View style={styles.locationInfo}>
                 <Ionicons name="location-outline" size={16} color={Colors.textSecondary} />
@@ -150,6 +150,9 @@ export default function ClientRequestsScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
+      <View style={styles.brandContainer}>
+        <Text style={styles.brandText}>Created by J.Conpe © 2026</Text>
+      </View>
     </SafeAreaView>
   );
 }
@@ -158,6 +161,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  brandContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  brandText: {
+    fontSize: 10,
+    color: '#CCCCCC',
+    fontStyle: 'italic',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   header: {
     flexDirection: 'row',

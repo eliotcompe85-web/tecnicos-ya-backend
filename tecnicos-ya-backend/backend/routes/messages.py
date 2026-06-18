@@ -1,13 +1,12 @@
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sqlalchemy.orm import Session
+import logging
 
 from database import get_db, Message, Visit, ServiceRequest
 from schemas import MessageCreate, MessageResponse
 from auth import get_current_user, get_current_user_id
 from server import limiter
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 logger = logging.getLogger(__name__)
 

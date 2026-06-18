@@ -76,7 +76,7 @@ export default function TechnicianHomeScreen() {
           currentStatus={availability}
           onStatusChange={setAvailability}
         />
-
+        
         {jobs.length === 0 && !isLoading && (
           <View style={styles.emptyState}>
             <Ionicons name="briefcase-outline" size={64} color={Colors.disabled} />
@@ -86,7 +86,7 @@ export default function TechnicianHomeScreen() {
             </Text>
           </View>
         )}
-
+        
         {jobs.map((job) => (
           <TouchableOpacity
             key={job._id}
@@ -104,17 +104,17 @@ export default function TechnicianHomeScreen() {
                 </View>
               )}
             </View>
-
+            
             <View style={styles.clientInfo}>
               <Ionicons name="person-circle-outline" size={16} color={Colors.textSecondary} />
               <Text style={styles.clientName}>{job.client_name}</Text>
             </View>
-
+            
             <Text style={styles.categoryName}>{job.category_name}</Text>
             <Text style={styles.jobDescription} numberOfLines={2}>
               {job.description}
             </Text>
-
+            
             <View style={styles.jobFooter}>
               <View style={styles.locationInfo}>
                 <Ionicons name="location-outline" size={16} color={Colors.textSecondary} />
@@ -129,7 +129,7 @@ export default function TechnicianHomeScreen() {
                 {format(new Date(job.created_at), 'dd MMM', { locale: es })}
               </Text>
             </View>
-
+            
             <TouchableOpacity
               style={styles.applyButton}
               onPress={() => router.push(`/technician/job-detail/${job._id}`)}
@@ -141,6 +141,9 @@ export default function TechnicianHomeScreen() {
         ))}
       </ScrollView>
       <AdBanner />
+      <View style={styles.brandContainer}>
+        <Text style={styles.brandText}>Created by J.Conpe © 2026</Text>
+      </View>
     </SafeAreaView>
   );
 }
@@ -149,6 +152,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  brandContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  brandText: {
+    fontSize: 10,
+    color: '#CCCCCC',
+    fontStyle: 'italic',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   header: {
     padding: 20,
