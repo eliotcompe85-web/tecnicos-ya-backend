@@ -49,7 +49,18 @@ def create_application(
         raise HTTPException(status_code=404, detail="Solicitud de servicio no encontrada")
     if service_req.client_id == user.id:
         raise HTTPException(status_code=400, detail="No puedes aplicar a tu propia solicitud")
+    
+    # FIX: Prevent negative or zero pricing
+    if app_data.proposed_price <= 0:
+        raise HTTPException(status_code=400, detail="El precio propuesto debe ser mayor a 0")
 
+    # FIX: Prevent extreme over-pricing (Price > 2x budget_max)
+    if service_req.budget_max and app_data.proposed_price > (service_req.budget_max * 2):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"El precio propuesto excede demasiado el presupuesto máximo ({service_req.budget_max})."
+        )
+    
     new_app = Application(
         service_request_id=app_data.service_request_id,
         technician_id=user.id,
@@ -89,6 +100,13 @@ def accept_application(
         raise HTTPException(status_code=404, detail="Aplicación no encontrada")
 
     application.status = "accepted"
+    
+    # FIX: Reject all other applications for this service request
+    db.query(Application).filter(
+        Application.service_request_id == application.service_request_id,
+        Application.id != application.id,
+        Application.status == "pending"
+    ).update({"status": "rejected"})
 
     service_req = db.query(ServiceRequest).filter(
         ServiceRequest.id == application.service_request_id

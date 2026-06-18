@@ -26,6 +26,18 @@ def create_visit(visit_data: VisitCreate, db: Session = Depends(get_db)):
     if not application:
         raise HTTPException(status_code=404, detail="La aplicación asociada no fue encontrada")
     
+    # Agenda Check: Prevent overlapping visits
+    overlapping_visit = db.query(Visit).filter(
+        Visit.technician_id == visit_data.technician_id,
+        Visit.scheduled_at == visit_data.scheduled_at,
+        Visit.status != "cancelled"
+    ).first()
+    if overlapping_visit:
+        raise HTTPException(
+            status_code=400, 
+            detail="El técnico ya tiene una visita programada para esta fecha y hora."
+        )
+
     try:
         location_data = json.loads(profile.location)
         coordinates = location_data.get("coordinates", [])
@@ -54,7 +66,8 @@ def create_visit(visit_data: VisitCreate, db: Session = Depends(get_db)):
         longitud_tecnico=tech_lon,
         distancia_km=distancia,
         precio_final=precio_final,
-        scheduled_at=visit_data.scheduled_at
+        scheduled_at=visit_data.scheduled_at,
+        status="pending_payment"
     )
 
     db.add(nueva_visita)
@@ -100,19 +113,13 @@ def update_visit_status(
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Estado no válido")
 
-    # FIX: Prevent Payment Fraud. Only the Client can mark a visit as 'paid'.
-    if status == "paid":
-        if not visit.service_request_id:
-            raise HTTPException(status_code=500, detail="Error interno: Visita no vinculada a solicitud")
-        
-        sr = db.query(ServiceRequest).filter(ServiceRequest.id == visit.service_request_id).first()
-        if not sr or sr.client_id != user.id:
-            raise HTTPException(status_code=403, detail="Solo el cliente puede marcar el servicio como pagado.")
-        
     # If the technician is marking as 'completed', that's allowed.
-    if status == "completed" and user.role != "technician":
-         raise HTTPException(status_code=403, detail="Solo el técnico puede marcar la visita como completada.")
-
+    if status == "completed":
+        if user.role != "technician":
+             raise HTTPException(status_code=403, detail="Solo el técnico puede marcar la visita como completada.")
+        if visit.status != "paid":
+             raise HTTPException(status_code=400, detail="No se puede completar una visita que no ha sido pagada.")
+    
     visit.status = status
     db.commit()
     

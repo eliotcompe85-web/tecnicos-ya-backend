@@ -1,3 +1,13 @@
 {
-  "expo": {}
+  "expo": {
+    "android": {
+      "package": "com.jimmywhitehat.ultimoproyecto"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "fc2b8c33-8074-4d34-b20d-4991fb3215de"
+      }
+    },
+    "owner": "jimmywhitehat"
+  }
 }

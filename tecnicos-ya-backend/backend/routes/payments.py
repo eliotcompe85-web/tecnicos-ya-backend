@@ -83,11 +83,11 @@ async def handle_stripe_webhook(request: Request, db: Session = Depends(get_db))
         payment_intent = event.get("data", {}).get("object", {})
         metadata = payment_intent.get("metadata", {})
         visit_id = metadata.get("visit_id")
-
+        
         if visit_id:
             visit = db.query(Visit).filter(Visit.id == visit_id).first()
             if visit:
-                visit.payment_status = "paid"
+                visit.status = "paid"
                 db.commit()
                 logger.info(f"Pago completado: Visita ID {visit_id} marcada como pagada")
                 return {"status": "success"}

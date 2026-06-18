@@ -139,6 +139,16 @@ class Notification(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     link = Column(String, nullable=True)
 
+class Message(Base):
+    __tablename__ = "messages"
+    id = Column(Integer, primary_key=True, index=True)
+    visit_id = Column(Integer, ForeignKey("visits.id"), nullable=False)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    receiver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    content = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_read = Column(Boolean, default=False)
+
 def get_db():
 
     db = SessionLocal()
@@ -245,6 +255,22 @@ def sync_database_schema():
             )
         '''))
 
+        # Create messages table
+        conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                visit_id INTEGER NOT NULL,
+                sender_id INTEGER NOT NULL,
+                receiver_id INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_read BOOLEAN DEFAULT 0,
+                FOREIGN KEY(visit_id) REFERENCES visits(id),
+                FOREIGN KEY(sender_id) REFERENCES users(id),
+                FOREIGN KEY(receiver_id) REFERENCES users(id)
+            )
+        '''))
+        
         # Add scheduled_at to visits
         result_visits = conn.execute(text("PRAGMA table_info(visits)"))
         columns_visits = [row[1] for row in result_visits.fetchall()]

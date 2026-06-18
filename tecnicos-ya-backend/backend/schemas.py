@@ -137,3 +137,18 @@ class CategoryOut(BaseModel):
     is_active: bool = True
 
     model_config = ConfigDict(from_attributes=True)
+
+class MessageCreate(BaseModel):
+    visit_id: int
+    content: str
+
+class MessageResponse(BaseModel):
+    id: int
+    visit_id: int
+    sender_id: int
+    receiver_id: int
+    content: str
+    created_at: datetime
+    is_read: bool
+
+    model_config = ConfigDict(from_attributes=True)

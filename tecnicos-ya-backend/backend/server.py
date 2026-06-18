@@ -22,6 +22,7 @@ from routes.payments import router as payments_router
 from routes.google_auth import router as google_auth_router
 from routes.notifications import router as notifications_router
 from routes.disputes import router as disputes_router
+from routes.messages import router as messages_router
 from routes.visits import router as visits_calc_router
 
 app = FastAPI(title="API Técnicos Ya V2", version="2.1")
@@ -84,6 +85,7 @@ app.include_router(payments_router)
 app.include_router(google_auth_router)
 app.include_router(notifications_router)
 app.include_router(disputes_router)
+app.include_router(messages_router)
 
 # Legacy endpoint mapping for backward compatibility
 from fastapi import APIRouter

@@ -43,6 +43,13 @@ def create_review(
     visit = db.query(Visit).filter(Visit.id == review_data.visit_id).first()
     if not visit:
         raise HTTPException(status_code=404, detail="Visita no encontrada")
+    
+    # FIX: Prevent reviews on cancelled or disputed visits
+    if visit.status in ["cancelled", "disputed"]:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No se puede dejar una reseña en una visita que ha sido {visit.status}."
+        )
 
     reviewee_id = visit.technician_id
     if review_data.to_user_id and review_data.to_user_id != reviewee_id:

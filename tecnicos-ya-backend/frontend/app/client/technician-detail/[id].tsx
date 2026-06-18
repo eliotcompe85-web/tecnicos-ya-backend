@@ -45,11 +45,6 @@ export default function TechnicianDetailScreen() {
     }
   };
 
-  const handleWhatsApp = () => {
-    const phone = profile?.user?.phone?.replace(/[^0-9]/g, '');
-    if (phone) Linking.openURL(`https://wa.me/${phone}`);
-  };
-
   if (isLoading || !profile) {
     return (
       <SafeAreaView style={styles.container}>
@@ -99,10 +94,6 @@ export default function TechnicianDetailScreen() {
         </View>
 
         <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.actionButton} onPress={handleWhatsApp}>
-            <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
-            <Text style={styles.actionText}>WhatsApp</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={[styles.actionButton, styles.primaryAction]} onPress={() => router.push('/client/new-request')}>
             <Ionicons name="add-circle" size={24} color="#FFF" />
             <Text style={[styles.actionText, { color: '#FFF' }]}>Solicitar</Text>

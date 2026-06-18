@@ -1,0 +1,8 @@
+{
+    "envWatcher.enabled": true,
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "chat.tools.terminal.autoApprove": {
+        "..\\..\\.venv\\Scripts\\python.exe": true,
+        "Test-Path": true
+    }
+}

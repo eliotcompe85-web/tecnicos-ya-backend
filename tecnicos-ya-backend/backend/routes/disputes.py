@@ -20,6 +20,14 @@ def create_dispute(
     if not visit:
         raise HTTPException(status_code=404, detail="Visita no encontrada")
     
+    # FIX: Prevent multiple open disputes for the same visit
+    existing_dispute = db.query(Dispute).filter(
+        Dispute.visit_id == visit_id, 
+        Dispute.status == "open"
+    ).first()
+    if existing_dispute:
+        raise HTTPException(status_code=400, detail="Ya existe una disputa abierta para esta visita.")
+    
     new_dispute = Dispute(
         visit_id=visit_id,
         client_id=user.id,
