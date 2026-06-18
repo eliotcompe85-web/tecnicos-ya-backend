@@ -65,18 +65,22 @@ def register(user_data: UserCreate, background_tasks: BackgroundTasks, db: Sessi
 
 @router.post("/login", response_model=TokenResponse)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
-    logger.info(f"Login iniciado: {credentials.email}")
-    normalized_email = normalize_email(credentials.email)
-    user = db.query(User).filter(User.email == normalized_email).first()
+    logger.info(f"Login iniciado: {credentials.identifier}")
+    identifier = credentials.identifier.strip().lower()
+    
+    # Search by email or phone
+    user = db.query(User).filter(
+        (User.email == identifier) | (User.phone == identifier)
+    ).first()
 
     if not user or not verify_password(credentials.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
-
+        raise HTTPException(status_code=401, detail="Identificador o contraseña incorrectos")
+    
     if not user.is_verified:
-        raise HTTPException(status_code=403, detail="Debes verificar tu email antes de iniciar sesión")
-
+        raise HTTPException(status_code=403, detail="Debes verificar tu cuenta antes de iniciar sesión")
+    
     access_token = create_access_token(data={"sub": user.id})
-
+    
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -89,6 +93,7 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
             is_verified=user.is_verified,
         )
     }
+
 
 
 @router.get("/me", response_model=UserResponse)

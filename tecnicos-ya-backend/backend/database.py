@@ -52,6 +52,10 @@ class TechnicianProfile(Base):
     experience_years = Column(Integer, default=0)
     certifications = Column(String, nullable=True)
     portfolio_images = Column(String, nullable=True)
+    background_check_cert = Column(String, nullable=True)
+    id_card_front = Column(String, nullable=True)
+    id_card_back = Column(String, nullable=True)
+    verification_status = Column(String, default="pending") # pending, approved, rejected
     location = Column(String, nullable=True)
     availability_status = Column(String, default="available")
     membership_type = Column(String, default="none")
@@ -93,13 +97,27 @@ class Visit(Base):
     __tablename__ = "visits"
     id = Column(Integer, primary_key=True, index=True)
     technician_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    service_request_id = Column(Integer, ForeignKey("service_requests.id"), nullable=True)
     latitud_cliente = Column(Float, nullable=False)
     longitud_cliente = Column(Float, nullable=False)
     latitud_tecnico = Column(Float, nullable=False)
     longitud_tecnico = Column(Float, nullable=False)
     distancia_km = Column(Float, nullable=False)
     precio_final = Column(Float, nullable=False)
+    status = Column(String, default="scheduled") # scheduled, completed, paid, cancelled, disputed
     fecha = Column(DateTime, default=datetime.utcnow)
+    scheduled_at = Column(DateTime, nullable=True)
+
+class Dispute(Base):
+    __tablename__ = "disputes"
+    id = Column(Integer, primary_key=True, index=True)
+    visit_id = Column(Integer, ForeignKey("visits.id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    technician_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    reason = Column(String, nullable=False)
+    status = Column(String, default="open") # open, resolved, rejected
+    resolution = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Review(Base):
@@ -112,8 +130,17 @@ class Review(Base):
     comment = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class Notification(Base):
+    __tablename__ = "notifications"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    message = Column(String, nullable=False)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    link = Column(String, nullable=True)
 
 def get_db():
+
     db = SessionLocal()
     try:
         yield db
@@ -125,8 +152,17 @@ def init_database():
     Base.metadata.create_all(bind=engine)
     sync_database_schema()
 
+def create_notification(user_id: int, message: str, link: str = None):
+    db = SessionLocal()
+    try:
+        notification = Notification(user_id=user_id, message=message, link=link)
+        db.add(notification)
+        db.commit()
+    finally:
+        db.close()
 
 def sync_database_schema():
+
     with engine.connect() as conn:
         result = conn.execute(text("PRAGMA table_info(visits)"))
         columns = [row[1] for row in result.fetchall()]
@@ -179,4 +215,42 @@ def sync_database_schema():
             conn.execute(text("ALTER TABLE users ADD COLUMN verification_token TEXT"))
         if 'verification_sent_at' not in user_columns:
             conn.execute(text("ALTER TABLE users ADD COLUMN verification_sent_at DATETIME"))
+        
+        # Create notifications table if it doesn't exist
+        conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                message TEXT NOT NULL,
+                is_read BOOLEAN DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                link TEXT
+            )
+        '''))
+        
+        # Create disputes table
+        conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS disputes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                visit_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
+                technician_id INTEGER NOT NULL,
+                reason TEXT NOT NULL,
+                status TEXT DEFAULT 'open',
+                resolution TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(visit_id) REFERENCES visits(id),
+                FOREIGN KEY(client_id) REFERENCES users(id),
+                FOREIGN KEY(technician_id) REFERENCES users(id)
+            )
+        '''))
+
+        # Add scheduled_at to visits
+        result_visits = conn.execute(text("PRAGMA table_info(visits)"))
+        columns_visits = [row[1] for row in result_visits.fetchall()]
+        if 'scheduled_at' not in columns_visits:
+            conn.execute(text("ALTER TABLE visits ADD COLUMN scheduled_at DATETIME"))
+        if 'service_request_id' not in columns_visits:
+            conn.execute(text("ALTER TABLE visits ADD COLUMN service_request_id INTEGER"))
+
         conn.commit()

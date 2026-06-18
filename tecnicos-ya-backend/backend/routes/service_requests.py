@@ -70,3 +70,26 @@ def get_service_request(request_id: int, db: Session = Depends(get_db)):
     if not req:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
     return serialize_service_request(req, db)
+
+@router.put("/{request_id}/cancel")
+def cancel_service_request(request_id: int, authorization: Optional[str] = Header(None, alias="Authorization"), db: Session = Depends(get_db)):
+    user = get_current_user(authorization, db)
+    req = db.query(ServiceRequest).filter(ServiceRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    if req.client_id != user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para cancelar esta solicitud")
+    
+    req.status = "cancelled"
+    db.commit()
+    
+    from database import Application, create_notification
+    apps = db.query(Application).filter(Application.service_request_id == request_id).all()
+    for app in apps:
+        create_notification(
+            user_id=app.technician_id,
+            message=f"La solicitud {req.title} ha sido cancelada por el cliente",
+            link=f"/technician/dashboard"
+        )
+    
+    return {"status": "success", "message": "Solicitud cancelada correctamente"}

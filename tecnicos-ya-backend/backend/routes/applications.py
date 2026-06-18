@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
-from database import get_db, Application, ServiceRequest
+from database import get_db, Application, ServiceRequest, create_notification, TechnicianProfile
 from schemas import ApplicationCreate
 from auth import get_current_user, get_current_user_id, require_role
 from services.serialization import serialize_application
@@ -11,7 +11,6 @@ from services.serialization import serialize_application
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/applications", tags=["applications"])
-
 
 @router.get("")
 def get_applications(
@@ -27,7 +26,6 @@ def get_applications(
         apps = db.query(Application).filter(Application.service_request_id.in_(request_ids)).all() if request_ids else []
     return [serialize_application(app, db) for app in apps]
 
-
 @router.post("")
 def create_application(
     app_data: ApplicationCreate,
@@ -36,6 +34,13 @@ def create_application(
 ):
     user = get_current_user(authorization, db)
     require_role(user, "technician")
+
+    profile = db.query(TechnicianProfile).filter(TechnicianProfile.user_id == user.id).first()
+    if not profile or not profile.description or not profile.category_ids:
+        raise HTTPException(status_code=400, detail="Debes completar tu perfil profesional antes de postularte")
+    
+    if profile.verification_status != "approved":
+        raise HTTPException(status_code=403, detail="Tu cuenta aún no ha sido verificada por un administrador. No puedes postularte hasta que tu documentación sea aprobada.")
 
     service_req = db.query(ServiceRequest).filter(
         ServiceRequest.id == app_data.service_request_id
@@ -54,8 +59,13 @@ def create_application(
     db.add(new_app)
     db.commit()
     db.refresh(new_app)
+    
+    create_notification(
+        user_id=service_req.client_id,
+        message=f"El técnico {user.full_name} ha postulado a tu solicitud: {service_req.title}",
+        link=f"/client/request/{service_req.id}"
+    )
     return serialize_application(new_app, db)
-
 
 @router.get("/my-applications")
 def get_my_applications(
@@ -65,7 +75,6 @@ def get_my_applications(
     tech_id = get_current_user_id(authorization)
     apps = db.query(Application).filter(Application.technician_id == tech_id).all()
     return [serialize_application(app, db) for app in apps]
-
 
 @router.put("/{app_id}/accept")
 def accept_application(
@@ -88,4 +97,11 @@ def accept_application(
         service_req.status = "in_progress"
 
     db.commit()
+
+    create_notification(
+        user_id=application.technician_id,
+        message=f"¡Felicidades! Fuiste aceptado para el trabajo: {service_req.title if service_req else 'Servicio'}",
+        link=f"/technician/dashboard"
+    )
+
     return serialize_application(application, db)

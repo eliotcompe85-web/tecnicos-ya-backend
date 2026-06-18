@@ -1,5 +1,6 @@
 from typing import Optional, List, Dict, Union
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from datetime import datetime
 
 
 class TechnicianCreate(BaseModel):
@@ -21,7 +22,7 @@ class UserCreate(UserBase):
 
 
 class UserLogin(BaseModel):
-    email: str
+    identifier: str
     password: str
 
 
@@ -35,6 +36,7 @@ class UserResponse(UserBase):
         from_attributes=True,
         validate_by_name=True,
         populate_by_name=True,
+        ser_json_by_alias=True,
     )
 
 
@@ -51,8 +53,10 @@ class EmailVerificationResponse(BaseModel):
 
 class VisitCreate(BaseModel):
     technician_id: int
+    application_id: int
     latitud_cliente: float
     longitud_cliente: float
+    scheduled_at: Optional[datetime] = None
 
 
 class ServiceRequestCreate(BaseModel):
@@ -81,6 +85,9 @@ class TechnicianProfileUpdate(BaseModel):
     experience_years: Optional[int] = None
     certifications: Optional[List[str]] = None
     portfolio_images: Optional[List[str]] = None
+    background_check_cert: Optional[str] = None
+    id_card_front: Optional[str] = None
+    id_card_back: Optional[str] = None
     availability_status: Optional[str] = None
     location: Optional[Dict[str, object]] = None
 

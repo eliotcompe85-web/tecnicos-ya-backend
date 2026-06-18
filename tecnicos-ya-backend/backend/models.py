@@ -24,7 +24,7 @@ class UserBase(BaseModel):
     email: EmailStr
     full_name: str
     phone: str
-    role: Literal["client", "technician"]
+    role: Literal["client", "technician", "admin"]
     is_active: bool = True
     is_blocked: bool = False
 
@@ -33,7 +33,7 @@ class UserCreate(BaseModel):
     password: str
     full_name: str
     phone: str
-    role: Literal["client", "technician"]
+    role: Literal["client", "technician", "admin"]
 
 class UserLogin(BaseModel):
     email: EmailStr

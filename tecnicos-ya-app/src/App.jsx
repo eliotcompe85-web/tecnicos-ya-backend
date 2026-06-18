@@ -1,64 +1,51 @@
-import { useRef, useState } from 'react'
-import emailjs from '@emailjs/browser'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import './App.css'
 
-import Navbar from './components/Navbar'
-import Hero from './components/Hero'
-import HowItWorks from './components/HowItWorks'
-import Categories from './components/Categories'
-import Features from './components/Features'
-import Pricing from './components/Pricing'
-import Testimonials from './components/Testimonials'
-import CTA from './components/CTA'
-import ContactForm from './components/ContactForm'
-import Footer from './components/Footer'
+import LandingPage from './pages/LandingPage'
+import Login from './pages/Login'
+import Register from './pages/Register'
+import ClientDashboard from './pages/ClientDashboard'
+import TechnicianDashboard from './pages/TechnicianDashboard'
+import AdminDashboard from './pages/AdminDashboard'
+import RequestDetails from './pages/RequestDetails'
+import VisitDetails from './pages/VisitDetails'
+import AuthCallback from './pages/AuthCallback'
+import TechnicianSearch from './pages/TechnicianSearch'
+import ProtectedRoute from './components/ProtectedRoute'
 import Toast from './components/Toast'
 import { useToast } from './hooks/useToast'
+import { AuthProvider } from './context/AuthContext'
 
 export default function App() {
-  const form = useRef(null)
-  const { toast, showToast } = useToast()
-  const [sending, setSending] = useState(false)
-  const [selectedType, setSelectedType] = useState('')
-
-  const sendEmail = (e) => {
-    e.preventDefault()
-    setSending(true)
-    const serviceId = 'service_8sm5cgq'
-    const templateId = 'template_7tj6v2e'
-    const publicKey = 'QKjumPpHwgQyCDZXH'
-
-    emailjs.sendForm(serviceId, templateId, form.current, publicKey)
-      .then(() => {
-        showToast('¡Solicitud enviada exitosamente! Te contactaremos pronto.')
-        form.current.reset()
-        setSelectedType('')
-      })
-      .catch(() => {
-        showToast('Error al enviar. Por favor intenta de nuevo.', 'error')
-      })
-      .finally(() => setSending(false))
-  }
+  const { toast } = useToast()
 
   return (
-    <>
-      <Navbar />
-      <Hero />
-      <HowItWorks />
-      <Categories />
-      <Features />
-      <Pricing />
-      <Testimonials />
-      <CTA />
-      <ContactForm
-        formRef={form}
-        sending={sending}
-        selectedType={selectedType}
-        onTypeChange={setSelectedType}
-        onSubmit={sendEmail}
-      />
-      <Footer />
-      <Toast toast={toast} />
-    </>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/auth-callback" element={<AuthCallback />} />
+          
+          <Route element={<ProtectedRoute allowedRoles={['client']} />}>
+            <Route path="/client/dashboard" element={<ClientDashboard />} />
+            <Route path="/client/request/:id" element={<RequestDetails />} />
+            <Route path="/client/visit/:id" element={<VisitDetails />} />
+            <Route path="/client/search" element={<TechnicianSearch />} />
+          </Route>
+          
+          <Route element={<ProtectedRoute allowedRoles={['technician']} />}>
+            <Route path="/technician/dashboard" element={<TechnicianDashboard />} />
+            <Route path="/technician/visit/:id" element={<VisitDetails />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          </Route>
+        </Routes>
+        <Toast toast={toast} />
+      </Router>
+    </AuthProvider>
   )
 }

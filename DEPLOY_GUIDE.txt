@@ -1,0 +1,35 @@
+
+================================================================================
+?? GUÍA DE DESPLIEGUE FINAL - TÉCNICOS YA
+================================================================================
+
+PASO 1: ABRIR EL FIREWALL (Ejecutar una sola vez como Administrador)
+--------------------------------------------------------------------------------
+Abre PowerShell como Administrador y ejecuta:
+New-NetFirewallRule -DisplayName "Técnicos Ya Backend" -Direction Inbound -LocalPort 8000 -Protocol TCP -Action Allow
+
+PASO 2: LANZAR EL BACKEND (Servidor)
+--------------------------------------------------------------------------------
+1. Abre una terminal.
+2. Ve a: cd "C:\Users\jimmy\Desktop\ULTIMO PROYECTO\tecnicos-ya-backend\backend"
+3. Ejecuta: uvicorn server:app --host 0.0.0.0 --port 8000 --reload
+
+PASO 3: LANZAR EL FRONTEND (App)
+--------------------------------------------------------------------------------
+1. Abre otra terminal.
+2. Ve a: cd "C:\Users\jimmy\Desktop\ULTIMO PROYECTO\tecnicos-ya-app"
+3. Ejecuta: npm install (Solo la primera vez)
+4. Ejecuta: npm run dev (o npx expo start)
+
+PASO 4: CONFIGURACIÓN DE RED (Móvil)
+--------------------------------------------------------------------------------
+Asegúrate de que tu teléfono esté en el mismo Wi-Fi que la PC.
+Crea un archivo .env en la carpeta "tecnicos-ya-app" con:
+EXPO_PUBLIC_API_URL=http://192.168.1.24:8000
+
+PASO 5: VERIFICACIÓN FINAL
+--------------------------------------------------------------------------------
+Entra desde el teléfono a: http://192.168.1.24:8000/health
+Si ves "healthy", la App ya puede iniciar sesión.
+================================================================================
+

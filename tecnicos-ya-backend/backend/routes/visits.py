@@ -19,6 +19,13 @@ def create_visit(visit_data: VisitCreate, db: Session = Depends(get_db)):
             status_code=404,
             detail=f"El técnico con ID {visit_data.technician_id} no existe o no tiene ubicación"
         )
+    
+    # Get proposed price from application for automatic calculation
+    from database import Application
+    application = db.query(Application).filter(Application.id == visit_data.application_id).first()
+    if not application:
+        raise HTTPException(status_code=404, detail="La aplicación asociada no fue encontrada")
+    
     try:
         location_data = json.loads(profile.location)
         coordinates = location_data.get("coordinates", [])
@@ -32,16 +39,22 @@ def create_visit(visit_data: VisitCreate, db: Session = Depends(get_db)):
         visit_data.latitud_cliente, visit_data.longitud_cliente,
         tech_lat, tech_lon
     )
-    precio = calcular_precio(distancia)
+    
+    # Automatic Pricing: Proposed Price + (Distance * Rate)
+    # Rate: 500 per km (Example)
+    KM_RATE = 500 
+    precio_final = application.proposed_price + (distancia * KM_RATE)
 
     nueva_visita = Visit(
         technician_id=visit_data.technician_id,
+        service_request_id=application.service_request_id,
         latitud_cliente=visit_data.latitud_cliente,
         longitud_cliente=visit_data.longitud_cliente,
         latitud_tecnico=tech_lat,
         longitud_tecnico=tech_lon,
         distancia_km=distancia,
-        precio_final=precio
+        precio_final=precio_final,
+        scheduled_at=visit_data.scheduled_at
     )
 
     db.add(nueva_visita)
@@ -67,15 +80,40 @@ def get_my_visits(
     return [sqlalchemy_to_dict(v) for v in visits]
 
 
-@router.put("/{visit_id}/confirm")
-def confirm_visit(
-    visit_id: int,
+@router.put("/{visit_id}/status")
+def update_visit_status(
+    visit_id: int, 
+    status: str, 
     authorization: Optional[str] = Header(None, alias="Authorization"),
     db: Session = Depends(get_db)
 ):
-    from auth import get_current_user_id
-    get_current_user_id(authorization)
+    from auth import get_current_user
+    from database import Application, ServiceRequest
+    user = get_current_user(authorization, db)
+    
     visit = db.query(Visit).filter(Visit.id == visit_id).first()
     if not visit:
         raise HTTPException(status_code=404, detail="Visita no encontrada")
+    
+    # Valid statuses
+    valid_statuses = ["scheduled", "completed", "paid", "cancelled", "disputed"]
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail="Estado no válido")
+
+    # FIX: Prevent Payment Fraud. Only the Client can mark a visit as 'paid'.
+    if status == "paid":
+        if not visit.service_request_id:
+            raise HTTPException(status_code=500, detail="Error interno: Visita no vinculada a solicitud")
+        
+        sr = db.query(ServiceRequest).filter(ServiceRequest.id == visit.service_request_id).first()
+        if not sr or sr.client_id != user.id:
+            raise HTTPException(status_code=403, detail="Solo el cliente puede marcar el servicio como pagado.")
+        
+    # If the technician is marking as 'completed', that's allowed.
+    if status == "completed" and user.role != "technician":
+         raise HTTPException(status_code=403, detail="Solo el técnico puede marcar la visita como completada.")
+
+    visit.status = status
+    db.commit()
+    
     return sqlalchemy_to_dict(visit)

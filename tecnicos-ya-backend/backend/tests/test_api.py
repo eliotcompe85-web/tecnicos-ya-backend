@@ -5,7 +5,7 @@ import os
 import time
 import requests
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://quick-repair-67.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
 
 
 # ==================== AUTH ====================
@@ -281,35 +281,25 @@ class TestReviewsPrivacy:
 
 # ==================== PRICE CALCULATION ====================
 class TestPriceCalculation:
-    """Verify the model helper logic via direct import."""
     def test_base_price_within_6km(self):
-        import sys
-        import os
+        import sys, os
         sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-        from models import calculate_visit_price
-        base, charge, total = calculate_visit_price(5.0)
-        assert base == 9990.0
-        assert charge == 0.0
+        from services.pricing import calcular_precio
+        total = calcular_precio(5.0)
         assert total == 9990.0
 
     def test_price_above_6km(self):
-        import sys
-        import os
+        import sys, os
         sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-        from models import calculate_visit_price
-        base, charge, total = calculate_visit_price(10.0)
-        # 10 - 6 = 4 extra km * 1000 = 4000
-        assert base == 9990.0
-        assert charge == 4000.0
+        from services.pricing import calcular_precio
+        total = calcular_precio(10.0)
         assert total == 13990.0
 
     def test_price_exactly_6km(self):
-        import sys
-        import os
+        import sys, os
         sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-        from models import calculate_visit_price
-        base, charge, total = calculate_visit_price(6.0)
-        assert charge == 0.0
+        from services.pricing import calcular_precio
+        total = calcular_precio(6.0)
         assert total == 9990.0
 
 

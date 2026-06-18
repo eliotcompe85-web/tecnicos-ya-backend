@@ -1,6 +1,6 @@
 import os
 import logging
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 from slowapi import Limiter
@@ -19,9 +19,30 @@ from routes.service_requests import router as service_requests_router
 from routes.applications import router as applications_router
 from routes.reviews import router as reviews_router
 from routes.payments import router as payments_router
+from routes.google_auth import router as google_auth_router
+from routes.notifications import router as notifications_router
+from routes.disputes import router as disputes_router
 from routes.visits import router as visits_calc_router
 
 app = FastAPI(title="API Técnicos Ya V2", version="2.1")
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unexpected error occurred: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Ocurrió un error interno en el servidor. Nuestro equipo técnico ya ha sido notificado.",
+            "error_code": "INTERNAL_SERVER_ERROR"
+        }
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
 
 if os.getenv("DISABLE_RATE_LIMITS", "0") == "1":
     class DummyLimiter:
@@ -60,6 +81,9 @@ app.include_router(service_requests_router)
 app.include_router(applications_router)
 app.include_router(reviews_router)
 app.include_router(payments_router)
+app.include_router(google_auth_router)
+app.include_router(notifications_router)
+app.include_router(disputes_router)
 
 # Legacy endpoint mapping for backward compatibility
 from fastapi import APIRouter
