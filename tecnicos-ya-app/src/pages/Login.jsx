@@ -26,7 +26,7 @@ export default function Login() {
       // The response contains a JWT (credential) from Google
       const idToken = response.credential;
       
-      const res = await fetch('http://localhost:8000/api/auth/google/verify-token', {
+      const res = await fetch('${import.meta.env.VITE_API_URL}/api/auth/google/verify-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: idToken }),
@@ -50,7 +50,7 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/auth/login', {
+      const response = await fetch('${import.meta.env.VITE_API_URL}/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier, password }),
@@ -73,7 +73,7 @@ export default function Login() {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = 'http://localhost:8000/api/auth/google/login';
+    window.location.href = '${import.meta.env.VITE_API_URL}/api/auth/google/login';
   };
 
   return (
@@ -132,3 +132,5 @@ export default function Login() {
     </div>
   );
 }
+
+

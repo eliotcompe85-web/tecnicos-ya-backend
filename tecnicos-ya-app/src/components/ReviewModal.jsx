@@ -13,7 +13,7 @@ export default function ReviewModal({ visitId, isOpen, onClose, onReviewed }) {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/reviews', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reviews`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -99,3 +99,5 @@ export default function ReviewModal({ visitId, isOpen, onClose, onReviewed }) {
     </div>
   );
 }
+
+

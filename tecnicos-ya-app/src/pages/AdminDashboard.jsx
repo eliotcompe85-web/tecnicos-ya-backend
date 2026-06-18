@@ -24,7 +24,7 @@ export default function AdminDashboard() {
     try {
       // In a real app, this would be a specific /api/admin/stats endpoint
       // For this demo, we'll simulate the aggregation of data
-      const response = await fetch('http://localhost:8000/api/categories', {
+      const response = await fetch('${import.meta.env.VITE_API_URL}/api/categories', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       
@@ -145,3 +145,5 @@ function AdminAction({ label, description, onClick }) {
     </button>
   );
 }
+
+

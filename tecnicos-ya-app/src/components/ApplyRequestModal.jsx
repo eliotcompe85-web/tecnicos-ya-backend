@@ -15,7 +15,7 @@ export default function ApplyRequestModal({ request, isOpen, onClose, onApplied 
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/applications', {
+      const response = await fetch('${import.meta.env.VITE_API_URL}/api/applications', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -104,3 +104,5 @@ export default function ApplyRequestModal({ request, isOpen, onClose, onApplied 
     </div>
   );
 }
+
+

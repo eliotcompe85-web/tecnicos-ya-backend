@@ -56,7 +56,7 @@ export default function CreateRequestModal({ isOpen, onClose, onCreated }) {
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/service-requests', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/service-requests`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -217,3 +217,5 @@ export default function CreateRequestModal({ isOpen, onClose, onCreated }) {
     </div>
   );
 }
+
+

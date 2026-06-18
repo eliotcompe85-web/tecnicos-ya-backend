@@ -11,7 +11,7 @@ export default function NotificationBell() {
 
   const fetchNotifications = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/notifications', {
+      const response = await fetch('${import.meta.env.VITE_API_URL}/api/notifications', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       if (response.ok) {
@@ -32,7 +32,7 @@ export default function NotificationBell() {
 
   const markAsRead = async (id) => {
     try {
-      await fetch(`http://localhost:8000/api/notifications/${id}/read`, {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/notifications/${id}/read`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
@@ -63,7 +63,7 @@ export default function NotificationBell() {
             <h3 className="font-bold text-gray-800">Notificaciones</h3>
             <button 
               onClick={async () => {
-                await fetch('http://localhost:8000/api/notifications/read-all', {
+                await fetch('${import.meta.env.VITE_API_URL}/api/notifications/read-all', {
                   method: 'PUT',
                   headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
@@ -104,3 +104,5 @@ export default function NotificationBell() {
     </div>
   );
 }
+
+

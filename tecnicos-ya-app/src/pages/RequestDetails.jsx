@@ -19,12 +19,12 @@ export default function RequestDetails() {
     try {
       const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
       
-      const reqRes = await fetch(`http://localhost:8000/api/service-requests/${id}`, { headers });
+      const reqRes = await fetch(`${import.meta.env.VITE_API_URL}/api/service-requests/${id}`, { headers });
       if (!reqRes.ok) throw new Error('Error al cargar la solicitud');
       const reqData = await reqRes.json();
       setRequest(reqData);
 
-      const appRes = await fetch(`http://localhost:8000/api/applications`, { headers });
+      const appRes = await fetch(`${import.meta.env.VITE_API_URL}/api/applications`, { headers });
       if (!appRes.ok) throw new Error('Error al cargar postulaciones');
       const appData = await appRes.json();
       
@@ -39,7 +39,7 @@ export default function RequestDetails() {
 
   const handleAccept = async (appId) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/applications/${appId}/accept`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/applications/${appId}/accept`, {
         method: 'PUT',
         headers: { 
           'Authorization': `Bearer ${localStorage.getItem('token')}` 
@@ -51,7 +51,7 @@ export default function RequestDetails() {
         
         // The backend create a Visit when application is accepted (usually)
         // Let's try to find the visit created for this request
-        const visitRes = await fetch(`http://localhost:8000/api/visits`, {
+        const visitRes = await fetch(`${import.meta.env.VITE_API_URL}/api/visits`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         const visits = await visitRes.json();
@@ -132,3 +132,5 @@ export default function RequestDetails() {
     </div>
   );
 }
+
+

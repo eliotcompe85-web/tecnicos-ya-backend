@@ -24,7 +24,7 @@ export default function EditProfileModal({ isOpen, onClose }) {
 
   const fetchProfile = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/technicians/profile/${user.id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/technicians/profile/${user.id}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       if (response.ok) {
@@ -49,7 +49,7 @@ export default function EditProfileModal({ isOpen, onClose }) {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/technicians/profile', {
+      const response = await fetch('${import.meta.env.VITE_API_URL}/api/technicians/profile', {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -218,3 +218,5 @@ export default function EditProfileModal({ isOpen, onClose }) {
     </div>
   );
 }
+
+

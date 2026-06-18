@@ -11,8 +11,8 @@ export default function PaymentModal({ isOpen, onClose, paymentType, amount, ite
     setLoading(true);
     try {
       const endpoint = paymentType === 'membership' 
-        ? 'http://localhost:8000/api/payments/membership/checkout' 
-        : 'http://localhost:8000/api/payments/visit/checkout';
+        ? '${import.meta.env.VITE_API_URL}/api/payments/membership/checkout' 
+        : '${import.meta.env.VITE_API_URL}/api/payments/visit/checkout';
 
       const body = paymentType === 'membership' 
         ? { plan: 'premium', success_url: successUrl, cancel_url: cancelUrl }
@@ -79,3 +79,5 @@ export default function PaymentModal({ isOpen, onClose, paymentType, amount, ite
     </div>
   );
 }
+
+

@@ -22,7 +22,7 @@ export default function VisitDetails() {
   const fetchVisitData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/visits/${id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/visits/${id}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       if (response.ok) {
@@ -38,7 +38,7 @@ export default function VisitDetails() {
 
   const handleConfirmCompletion = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/visits/${id}/confirm`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/visits/${id}/confirm`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });
@@ -158,3 +158,5 @@ export default function VisitDetails() {
     </div>
   );
 }
+
+

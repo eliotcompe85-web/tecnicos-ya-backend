@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from authlib.integrations.starlette_client import OAuth
-from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_CONF_URL, BACKEND_URL, logger
+from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_CONF_URL, BACKEND_URL, FRONTEND_URL, logger
 from database import get_db, User
 from auth import create_access_token, hash_password
 from google.oauth2 import id_token
@@ -101,7 +101,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         
         # Redirigir al frontend con el token en la URL (simplificado para demo)
         # En producción, se usaría un código temporal o una cookie segura
-        return RedirectResponse(url=f"http://localhost:5173/auth-callback?token={access_token}&user_id={user.id}")
+        return RedirectResponse(url=f"{FRONTEND_URL}/auth-callback?token={access_token}&user_id={user.id}")
 
     except Exception as e:
         logger.error(f"Error en Google Callback: {e}")

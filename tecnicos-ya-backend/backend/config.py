@@ -34,6 +34,7 @@ if not CORS_ORIGINS_ENV:
     logger.info(f"CORS: Configurado para desarrollo en la IP 192.168.1.24")
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 # Google OAuth Config
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")

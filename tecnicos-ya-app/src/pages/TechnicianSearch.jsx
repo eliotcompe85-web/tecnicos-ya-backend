@@ -43,7 +43,7 @@ export default function TechnicianSearch() {
         longitude: lon
       });
 
-      const response = await fetch(`http://localhost:8000/api/technicians/search?${params}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/technicians/search?${params}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       if (response.ok) {
@@ -157,3 +157,5 @@ export default function TechnicianSearch() {
     </div>
   );
 }
+
+

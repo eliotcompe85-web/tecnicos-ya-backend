@@ -11,7 +11,7 @@ export function AuthProvider({ children }) {
     const loadUser = async () => {
       if (token) {
         try {
-          const response = await fetch('http://localhost:8000/api/auth/me', {
+          const response = await fetch('${import.meta.env.VITE_API_URL}/api/auth/me', {
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -55,3 +55,5 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
+
+

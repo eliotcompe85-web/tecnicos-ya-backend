@@ -69,3 +69,5 @@ export default function ContactForm({ formRef, sending, selectedType, onTypeChan
     </section>
   )
 }
+
+

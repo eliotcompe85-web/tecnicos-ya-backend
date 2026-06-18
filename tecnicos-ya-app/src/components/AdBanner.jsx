@@ -36,3 +36,5 @@ export default function AdBanner({ type, image, text, link, ctaText }) {
     </div>
   );
 }
+
+
