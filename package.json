@@ -1,4 +1,5 @@
 {
+  "main": "App.js",
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
     "expo": "^56.0.11",
