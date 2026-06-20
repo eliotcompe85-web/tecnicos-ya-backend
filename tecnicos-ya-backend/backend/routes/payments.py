@@ -83,10 +83,18 @@ async def handle_stripe_webhook(request: Request, db: Session = Depends(get_db))
         payment_intent = event.get("data", {}).get("object", {})
         metadata = payment_intent.get("metadata", {})
         visit_id = metadata.get("visit_id")
+        amount_received = payment_intent.get("amount") # In cents
         
         if visit_id:
             visit = db.query(Visit).filter(Visit.id == visit_id).first()
             if visit:
+                # VALIDACIÓN CRÍTICA: Verificar que el monto pagado coincide con el de la visita
+                expected_amount = int(visit.precio_final * 100)
+                if amount_received != expected_amount:
+                    logger.error(f"FRAUDE DETECTADO: Visita {visit_id} esperaba ${expected_amount}, recibió ${amount_received}")
+                    # En producción: marcar como disputa o alerta
+                    raise ValueError(f"Monto incorrecto: {amount_received} vs {expected_amount}")
+                
                 visit.status = "paid"
                 db.commit()
                 logger.info(f"Pago completado: Visita ID {visit_id} marcada como pagada")

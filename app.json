@@ -3,11 +3,11 @@
     "android": {
       "package": "com.jimmywhitehat.ultimoproyecto"
     },
+    "owner": "jimmywhitehat",
     "extra": {
       "eas": {
-        "projectId": "fc2b8c33-8074-4d34-b20d-4991fb3215de"
+        "projectId": "495efd8f-48a2-46c1-ae67-59d949a7302c"
       }
-    },
-    "owner": "jimmywhitehat"
+    }
   }
 }

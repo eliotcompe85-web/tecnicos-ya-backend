@@ -24,18 +24,25 @@ def create_service_request(
 
     if not isinstance(request_data.location, dict) or "coordinates" not in request_data.location:
         raise HTTPException(status_code=400, detail="Location inválida")
-
+    
     coords = request_data.location["coordinates"]
     if len(coords) != 2:
         raise HTTPException(status_code=400, detail="Coordinates deben incluir longitud y latitud")
+    
+    try:
+        lat, lon = float(coords[1]), float(coords[0])
+        if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+            raise ValueError("Coordenadas fuera de rango")
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Coordenadas inválidas (deben ser números en rangos válidos)")
 
     new_request = ServiceRequest(
         client_id=user.id,
         category_id=request_data.category_id,
         title=request_data.title,
         description=request_data.description,
-        latitude=float(coords[1]),
-        longitude=float(coords[0]),
+        latitude=lat,
+        longitude=lon,
         address=request_data.address,
         budget_min=request_data.budget_min,
         budget_max=request_data.budget_max,

@@ -149,6 +149,12 @@ class Message(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     is_read = Column(Boolean, default=False)
 
+class StripeEvent(Base):
+    __tablename__ = "stripe_events"
+    id = Column(String, primary_key=True) # Stripe event ID
+    event_type = Column(String, nullable=False)
+    processed_at = Column(DateTime, default=datetime.utcnow)
+
 def get_db():
 
     db = SessionLocal()
@@ -271,7 +277,17 @@ def sync_database_schema():
             )
         '''))
         
+        # Create stripe_events table for idempotency
+        conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS stripe_events (
+                id TEXT PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                processed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        '''))
+        
         # Add scheduled_at to visits
+
         result_visits = conn.execute(text("PRAGMA table_info(visits)"))
         columns_visits = [row[1] for row in result_visits.fetchall()]
         if 'scheduled_at' not in columns_visits:

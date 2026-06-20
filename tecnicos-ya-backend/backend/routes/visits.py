@@ -2,6 +2,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 import json
+from datetime import timedelta
 
 from database import get_db, Visit, TechnicianProfile
 from services.pricing import calcular_distancia_km, calcular_precio
@@ -26,16 +27,20 @@ def create_visit(visit_data: VisitCreate, db: Session = Depends(get_db)):
     if not application:
         raise HTTPException(status_code=404, detail="La aplicación asociada no fue encontrada")
     
-    # Agenda Check: Prevent overlapping visits
+    # Agenda Check: Prevent overlapping visits (2 hour window)
+    start_time = visit_data.scheduled_at
+    end_time = start_time + timedelta(hours=2)
+    
     overlapping_visit = db.query(Visit).filter(
         Visit.technician_id == visit_data.technician_id,
-        Visit.scheduled_at == visit_data.scheduled_at,
+        Visit.scheduled_at >= (start_time - timedelta(hours=2)),
+        Visit.scheduled_at <= end_time,
         Visit.status != "cancelled"
     ).first()
     if overlapping_visit:
         raise HTTPException(
             status_code=400, 
-            detail="El técnico ya tiene una visita programada para esta fecha y hora."
+            detail="El técnico ya tiene una visita programada en un horario cercano (ventana de 2 horas)."
         )
 
     try:
