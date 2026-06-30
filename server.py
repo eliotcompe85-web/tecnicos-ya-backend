@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -6,33 +7,12 @@ from sentry_sdk.integrations.starlette import StarletteIntegration
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from sqlalchemy.orm import Session
 
-# ... (código existente) ...
-
-# --- MIDDLEWARE GLOBAL DE ERRORES ---
-@app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"success": False, "message": exc.detail},
-    )
-
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"success": False, "message": "Datos inválidos", "errors": exc.errors()},
-    )
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Error no manejado: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={"success": False, "message": "Error interno del servidor"},
-    )
-# ------------------------------------
+# Añadimos el directorio actual al path para evitar errores de importación
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -71,6 +51,30 @@ else:
 # ----------------------------
 
 app = FastAPI(title="API Técnicos Ya V2", version="2.1")
+
+# --- MIDDLEWARE GLOBAL DE ERRORES ---
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "message": exc.detail},
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"success": False, "message": "Datos inválidos", "errors": exc.errors()},
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Error no manejado: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"success": False, "message": "Error interno del servidor"},
+    )
+# ------------------------------------
 
 if os.getenv("DISABLE_RATE_LIMITS", "0") == "1":
     class DummyLimiter:
