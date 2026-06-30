@@ -216,8 +216,11 @@ def seed_test_users():
         db.commit()
 
 
+startup_error = None
+
 @app.on_event("startup")
 def startup():
+    global startup_error
     logger.info("Inicializando base de datos...")
     try:
         init_database()
@@ -226,9 +229,14 @@ def startup():
         seed_test_users()
         logger.info("Aplicación iniciada correctamente")
     except Exception as e:
+        import traceback
+        startup_error = traceback.format_exc()
         logger.error(f"Error fatal durante el startup: {e}", exc_info=True)
         # No crasheamos la app, permitimos que siga corriendo para que Railway no de 502
 
+@legacy.get("/debug/error")
+def get_debug_error():
+    return {"error": startup_error}
 
 @legacy.get("/health")
 def health_check():
