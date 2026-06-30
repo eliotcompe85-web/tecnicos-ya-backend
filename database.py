@@ -62,6 +62,7 @@ class TechnicianProfile(Base):
     membership_start_date = Column(DateTime, nullable=True)
     membership_end_date = Column(DateTime, nullable=True)
     is_first_month_free = Column(Boolean, default=True)
+    stripe_account_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     user = relationship("User", back_populates="technician_profile")
