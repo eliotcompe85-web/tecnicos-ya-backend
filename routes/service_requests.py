@@ -2,6 +2,7 @@ import logging
 from typing import Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import text
 
 from database import get_db, ServiceRequest, Application
 from schemas import ServiceRequestCreate
@@ -12,6 +13,25 @@ from services.matching import find_matching_technicians, notify_matching_technic
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/service-requests", tags=["service_requests"])
+
+@router.get("/fix-db")
+def fix_db(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("ALTER TABLE visits ADD COLUMN client_id INTEGER"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Error adding client_id: {e}")
+        
+    try:
+        db.execute(text("ALTER TABLE visits ADD COLUMN service_request_id INTEGER"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Error adding service_request_id: {e}")
+        
+    return {"message": "DB Fixed"}
+
 
 
 @router.post("")

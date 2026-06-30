@@ -98,11 +98,11 @@ def serialize_application(application: Application, db: Session = None) -> Dict:
 def serialize_service_request(service_request: ServiceRequest, db: Session = None, latitude: Optional[float] = None, longitude: Optional[float] = None) -> Dict:
     client = service_request.client
     category = None
-    if db:
+    if db and service_request.category_id is not None:
         try:
             cat_id_int = int(service_request.category_id)
             category = db.query(Category).filter(Category.id == cat_id_int).first()
-        except ValueError:
+        except (ValueError, TypeError):
             pass
     applications = [serialize_application(app, db) for app in service_request.applications]
     visit = service_request.visit
