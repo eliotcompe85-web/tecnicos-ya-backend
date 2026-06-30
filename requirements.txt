@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+gunicorn
+sqlalchemy
+psycopg2-binary
+python-dotenv
+passlib[bcrypt]
+python-jose[cryptography]
+stripe
+exponent-server-sdk
+google-auth
+slowapi
+sentry-sdk
+alembic
