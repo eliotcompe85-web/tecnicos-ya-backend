@@ -9,11 +9,8 @@ logger = logging.getLogger(__name__)
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
-    if os.getenv("DISABLE_RATE_LIMITS", "0") == "1" or os.getenv("ENVIRONMENT") == "development":
-        SECRET_KEY = "dev-secret-key-change-in-production"
-        logger.warning("Usando SECRET_KEY de desarrollo. Configura SECRET_KEY en producción.")
-    else:
-        raise ValueError("SECRET_KEY no está configurada. Deteniendo aplicación por seguridad.")
+    SECRET_KEY = "fallback-secret-key-for-development-and-testing-only-123456789"
+    logger.warning("ATENCIÓN: Usando SECRET_KEY de respaldo. Configura SECRET_KEY en las variables de entorno de producción.")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./tecnicos_ya.db")
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
