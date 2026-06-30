@@ -70,7 +70,7 @@ def update_technician_profile(
         profile.certifications = json.dumps(profile_data.certifications)
     if profile_data.portfolio_images is not None:
         profile.portfolio_images = json.dumps(profile_data.portfolio_images)
-    if profile_data.document_urls is not None:
+    if profile_data.document_urls is not None and hasattr(profile, "document_urls"):
         profile.document_urls = json.dumps(profile_data.document_urls)
     if profile_data.availability_status is not None:
         profile.availability_status = profile_data.availability_status
@@ -121,7 +121,8 @@ def approve_technician(
     if not profile:
         raise HTTPException(status_code=404, detail="Perfil de técnico no encontrado")
 
-    profile.verification_status = "approved"
+    if hasattr(profile, "verification_status"):
+        profile.verification_status = "approved"
     db.commit()
     db.refresh(profile)
     
@@ -144,7 +145,8 @@ def reject_technician(
     if not profile:
         raise HTTPException(status_code=404, detail="Perfil de técnico no encontrado")
 
-    profile.verification_status = "rejected"
+    if hasattr(profile, "verification_status"):
+        profile.verification_status = "rejected"
     db.commit()
     db.refresh(profile)
     
@@ -169,7 +171,7 @@ def get_all_technicians(
             "id": t.id,
             "full_name": t.full_name,
             "email": t.email,
-            "status": t.technician_profile[0].verification_status if t.technician_profile else "pending"
+            "status": getattr(t.technician_profile[0], "verification_status", "pending") if t.technician_profile else "pending"
         }
         for t in technicians
     ]

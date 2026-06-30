@@ -35,8 +35,8 @@ def create_service_request(
         category_id=request_data.category_id,
         title=request_data.title,
         description=request_data.description,
-        latitud=float(coords[1]),
-        longitud=float(coords[0]),
+        latitude=float(coords[1]),
+        longitude=float(coords[0]),
         address=request_data.address,
         budget_min=request_data.budget_min,
         budget_max=request_data.budget_max,
@@ -50,8 +50,8 @@ def create_service_request(
     try:
         matches = find_matching_technicians(
             category_id=new_request.category_id,
-            latitude=new_request.latitud,
-            longitude=new_request.longitud,
+            latitude=new_request.latitude,
+            longitude=new_request.longitude,
             db=db
         )
         tech_ids = [m["user_id"] for m in matches]

@@ -19,7 +19,7 @@ def serialize_technician_profile(profile: TechnicianProfile, user: User) -> Dict
     category_ids = parse_json_field(profile.category_ids, [])
     certifications = parse_json_field(profile.certifications, [])
     portfolio_images = parse_json_field(profile.portfolio_images, [])
-    document_urls = parse_json_field(profile.document_urls, [])
+    document_urls = parse_json_field(getattr(profile, "document_urls", None), [])
     location = parse_json_field(profile.location, None)
 
     return {
@@ -39,7 +39,7 @@ def serialize_technician_profile(profile: TechnicianProfile, user: User) -> Dict
         "certifications": certifications,
         "portfolio_images": portfolio_images,
         "document_urls": document_urls,
-        "verification_status": profile.verification_status,
+        "verification_status": getattr(profile, "verification_status", "pending"),
         "availability_status": profile.availability_status,
         "membership_type": profile.membership_type,
         "location": location,
@@ -55,11 +55,11 @@ def serialize_technician_search_result(profile: TechnicianProfile, user: User, d
         "experience_years": profile.experience_years,
         "availability_status": profile.availability_status,
         "membership_type": profile.membership_type,
-        "verification_status": profile.verification_status,
+        "verification_status": getattr(profile, "verification_status", "pending"),
         "category_ids": parse_json_field(profile.category_ids, []),
         "certifications": parse_json_field(profile.certifications, []),
         "portfolio_images": parse_json_field(profile.portfolio_images, []),
-        "document_urls": parse_json_field(profile.document_urls, []),
+        "document_urls": parse_json_field(getattr(profile, "document_urls", None), []),
         "location": parse_json_field(profile.location, None),
         "distance_km": distance_km,
         "user": {
@@ -102,8 +102,8 @@ def serialize_service_request(service_request: ServiceRequest, db: Session = Non
     visit = service_request.visit
 
     distance_km = None
-    if latitude is not None and longitude is not None and service_request.latitud is not None and service_request.longitud is not None:
-        distance_km = calcular_distancia_km(latitude, longitude, service_request.latitud, service_request.longitud)
+    if latitude is not None and longitude is not None and service_request.latitude is not None and service_request.longitude is not None:
+        distance_km = calcular_distancia_km(latitude, longitude, service_request.latitude, service_request.longitude)
 
     base_price = 9990.0
     distance_charge = 0.0
@@ -128,7 +128,7 @@ def serialize_service_request(service_request: ServiceRequest, db: Session = Non
         "created_at": service_request.created_at.isoformat() if service_request.created_at else None,
         "location": {
             "type": "Point",
-            "coordinates": [service_request.longitud, service_request.latitud],
+            "coordinates": [service_request.longitude, service_request.latitude],
         },
         "applications": applications,
         "visit_id": visit.id if visit else None,
