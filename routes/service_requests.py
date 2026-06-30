@@ -74,7 +74,6 @@ def get_my_requests(
     user = get_current_user(authorization, db)
     query = db.query(ServiceRequest).options(
         selectinload(ServiceRequest.client),
-        selectinload(ServiceRequest.category),
         selectinload(ServiceRequest.applications).selectinload(Application.technician),
         selectinload(ServiceRequest.visit)
     ).filter(ServiceRequest.client_id == user.id)
@@ -98,7 +97,6 @@ def get_service_requests(
 
     query = db.query(ServiceRequest).options(
         selectinload(ServiceRequest.client),
-        selectinload(ServiceRequest.category),
         selectinload(ServiceRequest.applications).selectinload(Application.technician),
         selectinload(ServiceRequest.visit)
     )
@@ -116,7 +114,6 @@ def get_service_requests(
 def get_service_request(request_id: int, db: Session = Depends(get_db)):
     req = db.query(ServiceRequest).options(
         selectinload(ServiceRequest.client),
-        selectinload(ServiceRequest.category),
         selectinload(ServiceRequest.applications).selectinload(Application.technician),
         selectinload(ServiceRequest.visit)
     ).filter(ServiceRequest.id == request_id).first()

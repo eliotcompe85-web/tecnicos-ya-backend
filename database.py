@@ -85,6 +85,9 @@ class ServiceRequest(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.datetime.utcnow)
     
+    client = relationship("User", foreign_keys=[client_id])
+    applications = relationship("Application", back_populates="service_request")
+    visit = relationship("Visit", back_populates="service_request", uselist=False)
 class Application(Base):
     __tablename__ = "applications"
     id = Column(Integer, primary_key=True, index=True)
@@ -95,6 +98,8 @@ class Application(Base):
     status = Column(String, nullable=True, default="pendiente")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
+    service_request = relationship("ServiceRequest", back_populates="applications")
+    technician = relationship("User", foreign_keys=[technician_id])
 class Visit(Base):
     __tablename__ = "visits"
     id = Column(Integer, primary_key=True, index=True)
@@ -109,6 +114,10 @@ class Visit(Base):
     precio_final = Column(Float, nullable=False)
     fecha = Column(DateTime, default=datetime.datetime.utcnow)
 
+    service_request = relationship("ServiceRequest", back_populates="visit")
+    technician = relationship("User", foreign_keys=[technician_id])
+    client = relationship("User", foreign_keys=[client_id])
+
 class Review(Base):
     __tablename__ = "reviews"
     id = Column(Integer, primary_key=True, index=True)
@@ -118,6 +127,9 @@ class Review(Base):
     rating = Column(Integer, nullable=False)
     comment = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    from_user = relationship("User", foreign_keys=[reviewer_id])
+    to_user = relationship("User", foreign_keys=[reviewee_id])
 
 class Payment(Base):
     __tablename__ = "payments"
