@@ -30,6 +30,20 @@ def fix_db(db: Session = Depends(get_db)):
         db.rollback()
         print(f"Error adding service_request_id: {e}")
         
+    try:
+        db.execute(text("ALTER TABLE service_requests ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Error adding created_at: {e}")
+
+    try:
+        db.execute(text("ALTER TABLE service_requests ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Error adding updated_at: {e}")
+
     return {"message": "DB Fixed"}
 
 
@@ -91,16 +105,22 @@ def get_my_requests(
     db: Session = Depends(get_db),
 ):
     """Returns requests belonging to the authenticated client, with optional status filter."""
-    user = get_current_user(authorization, db)
-    query = db.query(ServiceRequest).options(
-        selectinload(ServiceRequest.client),
-        selectinload(ServiceRequest.applications).selectinload(Application.technician),
-        selectinload(ServiceRequest.visit)
-    ).filter(ServiceRequest.client_id == user.id)
-    if status_filter:
-        query = query.filter(ServiceRequest.status == status_filter)
-    requests_list = query.order_by(ServiceRequest.created_at.desc()).all()
-    return [serialize_service_request(r, db) for r in requests_list]
+    try:
+        user = get_current_user(authorization, db)
+        query = db.query(ServiceRequest).options(
+            selectinload(ServiceRequest.client),
+            selectinload(ServiceRequest.applications).selectinload(Application.technician),
+            selectinload(ServiceRequest.visit)
+        ).filter(ServiceRequest.client_id == user.id)
+        if status_filter:
+            query = query.filter(ServiceRequest.status == status_filter)
+        requests_list = query.order_by(ServiceRequest.created_at.desc()).all()
+        return [serialize_service_request(r, db) for r in requests_list]
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        logger.error(f"Error in my-requests: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"DEBUG ERROR: {str(e)} | Trace: {error_msg}")
 
 
 @router.get("")
