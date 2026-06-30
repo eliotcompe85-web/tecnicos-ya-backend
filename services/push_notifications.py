@@ -5,7 +5,7 @@ from database import PushToken
 
 logger = logging.getLogger(__name__)
 
-def send_push_notification(user_id: int, title: str, body: str, db: Session):
+def send_push_to_user(user_id: int, title: str, body: str, db: Session, data: dict = None):
     """
     Sends a push notification to all devices registered to the user.
     """
@@ -19,13 +19,22 @@ def send_push_notification(user_id: int, title: str, body: str, db: Session):
     for token in tokens:
         try:
             logger.info(f"Sending notification to token {token.token}")
+            
+            payload_data = {"user_id": user_id}
+            if data:
+                payload_data.update(data)
+                
             client.publish(
                 PushMessage(
                     to=token.token,
                     title=title,
                     body=body,
-                    data={"user_id": user_id}
+                    data=payload_data
                 )
             )
         except Exception as e:
             logger.error(f"Error sending push notification to {token.token}: {e}")
+
+# Alias para compatibilidad con modules que importan send_push_notification
+def send_push_notification(user_id: int, title: str, body: str, db: Session):
+    return send_push_to_user(user_id, title, body, db)
