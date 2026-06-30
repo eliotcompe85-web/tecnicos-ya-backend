@@ -13,3 +13,4 @@ slowapi
 sentry-sdk
 alembic
 email-validator
+requests

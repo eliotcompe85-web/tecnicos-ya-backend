@@ -25,6 +25,11 @@ class UserLogin(BaseModel):
     password: str
 
 
+class GoogleLogin(BaseModel):
+    id_token: str
+    role: Optional[str] = "cliente"
+
+
 class UserResponse(UserBase):
     id: Optional[int] = None
     rating_avg: Optional[float] = None

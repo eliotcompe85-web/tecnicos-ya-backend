@@ -5,8 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException, Header, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from database import get_db, User
-from schemas import UserCreate, UserLogin, UserResponse, TokenResponse, EmailVerificationResponse, RefreshTokenRequest
+from schemas import UserCreate, UserLogin, GoogleLogin, UserResponse, TokenResponse, EmailVerificationResponse, RefreshTokenRequest
 from auth import hash_password, verify_password, create_access_token, create_refresh_token, decode_token, get_current_user_id, get_current_user_from_db, send_verification_email
+
+from google.oauth2 import id_token
+from google.auth.transport import requests
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +97,66 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
             is_verified=user.is_verified,
         )
     }
+
+
+@router.post("/google", response_model=TokenResponse)
+def google_login(payload: GoogleLogin, db: Session = Depends(get_db)):
+    logger.info("Login con Google iniciado")
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if not client_id:
+        logger.error("GOOGLE_CLIENT_ID no configurado")
+        raise HTTPException(status_code=500, detail="Configuración de Google Auth faltante")
+
+    try:
+        # Verify the token
+        idinfo = id_token.verify_oauth2_token(payload.id_token, requests.Request(), client_id)
+        
+        email = idinfo.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="El token de Google no contiene un email")
+            
+        normalized_email = normalize_email(email)
+        full_name = idinfo.get("name", "Usuario de Google")
+        
+        # Check if user exists
+        user = db.query(User).filter(User.email == normalized_email).first()
+        
+        if not user:
+            # Register new user
+            logger.info(f"Registrando nuevo usuario vía Google: {normalized_email}")
+            user = User(
+                email=normalized_email,
+                full_name=full_name,
+                phone="",
+                role=payload.role,
+                hashed_password=hash_password(str(uuid.uuid4())), # Random password
+                is_verified=True, # Trusted email from Google
+                verification_token=None,
+                verification_sent_at=None,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            
+        access_token = create_access_token(data={"sub": user.id})
+        refresh_token = create_refresh_token(data={"sub": user.id})
+
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user": UserResponse(
+                id=user.id,
+                email=user.email,
+                full_name=user.full_name,
+                phone=user.phone,
+                role=user.role,
+                is_verified=user.is_verified,
+            )
+        }
+    except ValueError as e:
+        logger.error(f"Error verificando token de Google: {e}")
+        raise HTTPException(status_code=401, detail="Token de Google inválido")
 
 
 @router.post("/refresh", response_model=TokenResponse)
