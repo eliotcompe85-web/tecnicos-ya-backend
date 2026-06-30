@@ -7,6 +7,8 @@ from sqlalchemy.orm import sessionmaker, relationship
 db_url = os.getenv("DATABASE_URL")
 if not db_url:
     db_url = "sqlite:///./tecnicos_ya.db"
+elif db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
 
 engine = create_engine(db_url, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

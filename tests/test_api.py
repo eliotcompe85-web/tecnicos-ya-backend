@@ -2,10 +2,14 @@
 Covers: auth, categories, technician profile, service requests, applications, visits, reviews (privacy).
 """
 import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import time
-import requests
+from fastapi.testclient import TestClient
+from server import app
 
-BASE_URL = "http://127.0.0.1:8000"
+requests = TestClient(app)
+BASE_URL = ""
 
 
 # ==================== AUTH ====================
