@@ -115,12 +115,15 @@ def get_my_requests(
         if status_filter:
             query = query.filter(ServiceRequest.status == status_filter)
         requests_list = query.order_by(ServiceRequest.created_at.desc()).all()
-        return [serialize_service_request(r, db) for r in requests_list]
+        data = [serialize_service_request(r, db) for r in requests_list]
+        from fastapi.responses import JSONResponse
+        return JSONResponse(content=data)
     except Exception as e:
         import traceback
         error_msg = traceback.format_exc()
         logger.error(f"Error in my-requests: {error_msg}")
-        raise HTTPException(status_code=500, detail=f"DEBUG ERROR: {str(e)} | Trace: {error_msg}")
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=500, content={"success": False, "message": f"DEBUG ERROR: {str(e)} | Trace: {error_msg}"})
 
 
 @router.get("")
