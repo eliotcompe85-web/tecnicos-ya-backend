@@ -4,11 +4,42 @@ from typing import Optional, List
  
 from database import get_db, Verification, Invoice, Warranty, User, TechnicianProfile
 from schemas import VerificationCreate, InvoiceCreate, WarrantyCreate, VerificationUpdate
-from services.serialization import sqlalchemy_to_dict
 from auth import get_current_user_id, get_current_user, require_role
  
 router = APIRouter(prefix="/api/compliance", tags=["compliance"])
  
+def serialize_verification(v: Verification) -> dict:
+    return {
+        "id": v.id,
+        "user_id": v.user_id,
+        "document_type": v.document_type,
+        "document_url": v.document_url,
+        "status": getattr(v, "status", "pending"),
+        "country_code": v.country_code,
+        "created_at": v.created_at.isoformat() if v.created_at else None
+    }
+
+def serialize_invoice(inv: Invoice) -> dict:
+    return {
+        "id": inv.id,
+        "visit_id": inv.visit_id,
+        "invoice_number": inv.invoice_number,
+        "fiscal_data": inv.fiscal_data,
+        "total_amount": inv.total_amount,
+        "status": getattr(inv, "status", "issued"),
+        "created_at": inv.created_at.isoformat() if inv.created_at else None
+    }
+
+def serialize_warranty(w: Warranty) -> dict:
+    return {
+        "id": w.id,
+        "visit_id": w.visit_id,
+        "coverage_details": w.coverage_details,
+        "expiry_date": w.expiry_date.isoformat() if w.expiry_date else None,
+        "status": getattr(w, "status", "active"),
+        "created_at": w.created_at.isoformat() if w.created_at else None
+    }
+
 @router.get("/pending")
 def get_pending_verifications(
     authorization: Optional[str] = Header(None, alias="Authorization"),
@@ -18,7 +49,7 @@ def get_pending_verifications(
     require_role(user, "admin")
     
     pending = db.query(Verification).filter(Verification.status == "pending").all()
-    return [sqlalchemy_to_dict(v) for v in pending]
+    return [serialize_verification(v) for v in pending]
  
 @router.patch("/verification/{verification_id}")
 def update_verification_status(
@@ -54,10 +85,9 @@ def update_verification_status(
 
     db.commit()
     db.refresh(verification)
-    return sqlalchemy_to_dict(verification)
+    return serialize_verification(verification)
  
 @router.post("/verification")
-
 def create_verification(
     data: VerificationCreate,
     authorization: Optional[str] = Header(None, alias="Authorization"),
@@ -73,7 +103,7 @@ def create_verification(
     db.add(verification)
     db.commit()
     db.refresh(verification)
-    return sqlalchemy_to_dict(verification)
+    return serialize_verification(verification)
 
 @router.post("/invoice")
 def create_invoice(
@@ -81,22 +111,21 @@ def create_invoice(
     authorization: Optional[str] = Header(None, alias="Authorization"),
     db: Session = Depends(get_db)
 ):
-    # En producción añadir lógica de validación de facturación
     from auth import get_current_user, require_role
     user = get_current_user(authorization, db)
-    require_role(user, "admin") # Solo admin puede emitir factura oficial
+    require_role(user, "admin")
     
     import uuid
     invoice = Invoice(
         visit_id=data.visit_id,
         invoice_number=str(uuid.uuid4()),
         fiscal_data=data.fiscal_data,
-        total_amount=0.0 # Debería calcularse desde la visita
+        total_amount=0.0
     )
     db.add(invoice)
     db.commit()
     db.refresh(invoice)
-    return sqlalchemy_to_dict(invoice)
+    return serialize_invoice(invoice)
 
 @router.post("/warranty")
 def create_warranty(
@@ -104,7 +133,6 @@ def create_warranty(
     authorization: Optional[str] = Header(None, alias="Authorization"),
     db: Session = Depends(get_db)
 ):
-    # Solo técnico o admin puede crear garantía
     get_current_user_id(authorization)
     
     from datetime import datetime
@@ -116,4 +144,4 @@ def create_warranty(
     db.add(warranty)
     db.commit()
     db.refresh(warranty)
-    return sqlalchemy_to_dict(warranty)
+    return serialize_warranty(warranty)

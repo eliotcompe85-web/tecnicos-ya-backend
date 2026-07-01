@@ -10,7 +10,14 @@ if not db_url:
 elif db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(db_url, pool_pre_ping=True)
+engine_kwargs = {"pool_pre_ping": True}
+if db_url and "postgresql" in db_url:
+    engine_kwargs.update({
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_timeout": 30
+    })
+engine = create_engine(db_url, **engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -38,6 +45,8 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     verification_token = Column(Text, nullable=True)
     verification_sent_at = Column(DateTime, nullable=True)
+    rating_avg = Column(Float, nullable=True, default=0.0)
+    rating_count = Column(Integer, nullable=True, default=0)
     
     technician_profile = relationship("TechnicianProfile", back_populates="user", uselist=False)
 
@@ -61,6 +70,7 @@ class TechnicianProfile(Base):
     location = Column(String, nullable=True)
     availability_status = Column(String, nullable=True)
     membership_type = Column(String, nullable=True)
+    verification_status = Column(String, default="pending")
     membership_start_date = Column(DateTime, nullable=True)
     membership_end_date = Column(DateTime, nullable=True)
     is_first_month_free = Column(Boolean, default=True)
@@ -72,7 +82,7 @@ class TechnicianProfile(Base):
 class ServiceRequest(Base):
     __tablename__ = "service_requests"
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     category_id = Column(String, nullable=False)
     title = Column(Text, nullable=False, default="")
     description = Column(String, nullable=False)
@@ -91,8 +101,8 @@ class ServiceRequest(Base):
 class Application(Base):
     __tablename__ = "applications"
     id = Column(Integer, primary_key=True, index=True)
-    service_request_id = Column(Integer, ForeignKey("service_requests.id"), nullable=False)
-    technician_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    service_request_id = Column(Integer, ForeignKey("service_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    technician_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     proposed_price = Column(Float, nullable=False)
     message = Column(Text, nullable=True)
     status = Column(String, nullable=True, default="pendiente")
@@ -103,9 +113,9 @@ class Application(Base):
 class Visit(Base):
     __tablename__ = "visits"
     id = Column(Integer, primary_key=True, index=True)
-    technician_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    client_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    service_request_id = Column(Integer, ForeignKey("service_requests.id"), nullable=True)
+    technician_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    client_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    service_request_id = Column(Integer, ForeignKey("service_requests.id", ondelete="CASCADE"), nullable=True, index=True)
     latitud_cliente = Column(Float, nullable=False)
     longitud_cliente = Column(Float, nullable=False)
     latitud_tecnico = Column(Float, nullable=False)
@@ -113,6 +123,11 @@ class Visit(Base):
     distancia_km = Column(Float, nullable=False)
     precio_final = Column(Float, nullable=False)
     fecha = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Nuevas columnas para control de estado
+    status = Column(String, nullable=True, default="pending")
+    completed_date = Column(DateTime, nullable=True)
+    client_confirmed = Column(Boolean, default=False)
 
     service_request = relationship("ServiceRequest", back_populates="visit")
     technician = relationship("User", foreign_keys=[technician_id])

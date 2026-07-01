@@ -155,7 +155,9 @@ def create_visit_checkout(
 
 def get_session_status(session_id: str) -> dict:
     """Get checkout session status"""
-    if DEMO_MODE or session_id.startswith("cs_demo_"):
+    if session_id.startswith("cs_demo_"):
+        if not DEMO_MODE:
+            raise ValueError("Intento de fraude: ID de demo detectado en entorno de producción.")
         # In demo mode, simulate paid status for testing
         return {
             "status": "complete",

@@ -1,33 +1,34 @@
 import uuid
 import logging
+import os
 from typing import Optional
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Header, BackgroundTasks
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from database import get_db, User
 from schemas import UserCreate, UserLogin, GoogleLogin, UserResponse, TokenResponse, EmailVerificationResponse, RefreshTokenRequest
-from auth import hash_password, verify_password, create_access_token, create_refresh_token, decode_token, get_current_user_id, get_current_user_from_db, send_verification_email
+from auth import hash_password, verify_password, create_access_token, create_refresh_token, decode_token, get_current_user_id, get_current_user_from_db, send_verification_email, pwd_context
 
 from google.oauth2 import id_token
 from google.auth.transport import requests
-import os
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
 
 def normalize_email(email: str) -> str:
     return email.strip().lower()
-
 
 @router.post("/register", response_model=TokenResponse)
 def register(user_data: UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     logger.info(f"Registro iniciado: {user_data.email}")
     normalized_email = normalize_email(user_data.email)
+    
     existing_user = db.query(User).filter(User.email == normalized_email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="El email ya está registrado")
+        
     if len(user_data.password) < 6:
         raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
 
@@ -38,18 +39,23 @@ def register(user_data: UserCreate, background_tasks: BackgroundTasks, db: Sessi
         phone=user_data.phone,
         role=user_data.role,
         hashed_password=hash_password(user_data.password),
-        is_verified=True,
-        verification_token=None,
-        verification_sent_at=None,
+        is_verified=False,
+        verification_token=verification_token,
+        verification_sent_at=datetime.utcnow(),
     )
+    
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    try:
+        db.commit()
+        db.refresh(new_user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="El email ya está registrado o hubo un error de concurrencia.")
 
     try:
         background_tasks.add_task(send_verification_email, new_user.email, new_user.full_name, verification_token)
     except Exception as e:
-        logger.warning(f"Fallo envío email de verificación: {e}")
+        logger.error(f"Fallo crítico al encolar email de verificación: {e}")
 
     access_token = create_access_token(data={"sub": new_user.id})
     refresh_token = create_refresh_token(data={"sub": new_user.id})
@@ -68,6 +74,28 @@ def register(user_data: UserCreate, background_tasks: BackgroundTasks, db: Sessi
         )
     }
 
+@router.post("/resend-verification")
+def resend_verification(email: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    normalized_email = normalize_email(email)
+    user = db.query(User).filter(User.email == normalized_email).first()
+    
+    if not user:
+        # Prevenir enumeración de cuentas devolviendo éxito silencioso
+        return {"message": "Si el correo existe y no está verificado, se enviará un enlace de activación."}
+        
+    if user.is_verified:
+        return {"message": "Si el correo existe y no está verificado, se enviará un enlace de activación."}
+
+    # Evitar spam: solo permitir un reenvío cada 2 minutos
+    if user.verification_sent_at and datetime.utcnow() - user.verification_sent_at < timedelta(minutes=2):
+        raise HTTPException(status_code=429, detail="Por favor espera unos minutos antes de solicitar otro correo.")
+
+    user.verification_token = str(uuid.uuid4())
+    user.verification_sent_at = datetime.utcnow()
+    db.commit()
+
+    background_tasks.add_task(send_verification_email, user.email, user.full_name, user.verification_token)
+    return {"message": "Si el correo existe y no está verificado, se enviará un enlace de activación."}
 
 @router.post("/login", response_model=TokenResponse)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
@@ -75,7 +103,11 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     normalized_email = normalize_email(credentials.email)
     user = db.query(User).filter(User.email == normalized_email).first()
 
-    if not user or not verify_password(credentials.password, user.hashed_password):
+    if not user:
+        pwd_context.hash("dummy_password_to_balance_response_time")
+        raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
+        
+    if not verify_password(credentials.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
 
     if not user.is_verified:
@@ -98,7 +130,6 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
         )
     }
 
-
 @router.post("/google", response_model=TokenResponse)
 def google_login(payload: GoogleLogin, db: Session = Depends(get_db)):
     logger.info("Login con Google iniciado")
@@ -108,9 +139,7 @@ def google_login(payload: GoogleLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Configuración de Google Auth faltante")
 
     try:
-        # Verify the token
         idinfo = id_token.verify_oauth2_token(payload.id_token, requests.Request(), client_id)
-        
         email = idinfo.get("email")
         if not email:
             raise HTTPException(status_code=400, detail="El token de Google no contiene un email")
@@ -118,25 +147,29 @@ def google_login(payload: GoogleLogin, db: Session = Depends(get_db)):
         normalized_email = normalize_email(email)
         full_name = idinfo.get("name", "Usuario de Google")
         
-        # Check if user exists
         user = db.query(User).filter(User.email == normalized_email).first()
         
         if not user:
-            # Register new user
             logger.info(f"Registrando nuevo usuario vía Google: {normalized_email}")
             user = User(
                 email=normalized_email,
                 full_name=full_name,
                 phone="",
                 role=payload.role,
-                hashed_password=hash_password(str(uuid.uuid4())), # Random password
-                is_verified=True, # Trusted email from Google
+                hashed_password=hash_password(str(uuid.uuid4())),
+                is_verified=True,
                 verification_token=None,
                 verification_sent_at=None,
             )
             db.add(user)
             db.commit()
             db.refresh(user)
+        else:
+            # Auto-verificación: Si el usuario existía pero no estaba verificado, Google sirve como prueba de identidad.
+            if not user.is_verified:
+                user.is_verified = True
+                user.verification_token = None
+                db.commit()
             
         access_token = create_access_token(data={"sub": user.id})
         refresh_token = create_refresh_token(data={"sub": user.id})
@@ -157,7 +190,6 @@ def google_login(payload: GoogleLogin, db: Session = Depends(get_db)):
     except ValueError as e:
         logger.error(f"Error verificando token de Google: {e}")
         raise HTTPException(status_code=401, detail="Token de Google inválido")
-
 
 @router.post("/refresh", response_model=TokenResponse)
 def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
@@ -192,7 +224,6 @@ def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
         logger.error(f"Error refreshing token: {e}")
         raise HTTPException(status_code=401, detail="Refresh token expirado o inválido")
 
-
 @router.get("/me", response_model=UserResponse)
 def get_current_user_info(
     authorization: Optional[str] = Header(None, alias="Authorization"),
@@ -210,12 +241,15 @@ def get_current_user_info(
         is_verified=user.is_verified,
     )
 
-
 @router.get("/verify-email", response_model=EmailVerificationResponse)
 def verify_email(token: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.verification_token == token).first()
     if not user:
         raise HTTPException(status_code=400, detail="Token de verificación inválido o vencido")
+
+    # Expiración de 24 horas para el token
+    if user.verification_sent_at and datetime.utcnow() - user.verification_sent_at > timedelta(hours=24):
+        raise HTTPException(status_code=400, detail="El token de verificación ha expirado. Solicita uno nuevo.")
 
     user.is_verified = True
     user.verification_token = None

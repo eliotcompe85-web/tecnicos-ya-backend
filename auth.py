@@ -54,10 +54,12 @@ def decode_token(token: str) -> dict:
 def get_token_from_header(authorization: Optional[str] = None) -> str:
     if not authorization:
         raise HTTPException(status_code=401, detail="Token faltante")
-    try:
-        return authorization.split(" ")[1]
-    except IndexError:
-        raise HTTPException(status_code=401, detail="Formato de token inválido")
+    
+    parts = authorization.split(" ")
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Formato de token inválido. Use 'Bearer <token>'")
+        
+    return parts[1]
 
 
 def get_current_user_id(authorization: Optional[str] = Header(None, alias="Authorization")) -> int:
@@ -90,9 +92,56 @@ def require_role(user, role: str):
         raise HTTPException(status_code=403, detail="Permiso denegado")
 
 
+import asyncio
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from config import SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM_EMAIL
+
 async def send_verification_email(email: str, full_name: str, token: str) -> None:
     verification_url = f"{BACKEND_URL}/api/auth/verify-email?token={token}"
-    logger.info(f"========== EMAIL SIMULADO ==========")
-    logger.info(f"Para: {email} ({full_name})")
-    logger.info(f"Enlace de verificación: {verification_url}")
-    logger.info(f"====================================")
+    
+    if not SMTP_USERNAME or not SMTP_PASSWORD:
+        logger.warning(f"========== EMAIL SIMULADO (Sin config SMTP) ==========")
+        logger.warning(f"Para: {email} ({full_name})")
+        logger.warning(f"Enlace de verificación: {verification_url}")
+        logger.warning(f"======================================================")
+        return
+
+    def _send():
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = "Verifica tu cuenta en TécnicosYa"
+            msg["From"] = f"TécnicosYa <{SMTP_FROM_EMAIL}>"
+            msg["To"] = email
+
+            html = f"""
+            <html>
+              <body>
+                <h2>¡Hola, {full_name}!</h2>
+                <p>Gracias por registrarte en TécnicosYa. Para comenzar a usar tu cuenta, por favor verifica tu correo electrónico haciendo clic en el siguiente enlace:</p>
+                <br>
+                <a href="{verification_url}" style="background-color: #2196F3; color: white; padding: 14px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">Verificar mi cuenta</a>
+                <br><br>
+                <p>O copia y pega esta URL en tu navegador:</p>
+                <p>{verification_url}</p>
+                <br>
+                <p>El equipo de TécnicosYa</p>
+              </body>
+            </html>
+            """
+            
+            part = MIMEText(html, "html")
+            msg.attach(part)
+
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.sendmail(SMTP_FROM_EMAIL, email, msg.as_string())
+            server.quit()
+            
+            logger.info(f"Correo de verificación enviado exitosamente a {email}")
+        except Exception as e:
+            logger.error(f"Error enviando correo de verificación a {email}: {str(e)}")
+
+    await asyncio.to_thread(_send)

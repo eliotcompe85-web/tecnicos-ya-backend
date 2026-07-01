@@ -121,8 +121,7 @@ def approve_technician(
     if not profile:
         raise HTTPException(status_code=404, detail="Perfil de técnico no encontrado")
 
-    if hasattr(profile, "verification_status"):
-        profile.verification_status = "approved"
+    profile.verification_status = "approved"
     db.commit()
     db.refresh(profile)
     
@@ -145,8 +144,7 @@ def reject_technician(
     if not profile:
         raise HTTPException(status_code=404, detail="Perfil de técnico no encontrado")
 
-    if hasattr(profile, "verification_status"):
-        profile.verification_status = "rejected"
+    profile.verification_status = "rejected"
     db.commit()
     db.refresh(profile)
     
@@ -171,7 +169,7 @@ def get_all_technicians(
             "id": t.id,
             "full_name": t.full_name,
             "email": t.email,
-            "status": getattr(t.technician_profile[0], "verification_status", "pending") if t.technician_profile else "pending"
+            "status": getattr(t.technician_profile, "verification_status", "pending") if t.technician_profile else "pending"
         }
         for t in technicians
     ]

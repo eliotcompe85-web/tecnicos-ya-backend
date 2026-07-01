@@ -1,6 +1,6 @@
 import logging
 from typing import Optional, Union
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, BackgroundTasks
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import text
 
@@ -14,43 +14,32 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/service-requests", tags=["service_requests"])
 
-@router.get("/fix-db")
-def fix_db(db: Session = Depends(get_db)):
-    try:
-        db.execute(text("ALTER TABLE visits ADD COLUMN client_id INTEGER"))
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        print(f"Error adding client_id: {e}")
-        
-    try:
-        db.execute(text("ALTER TABLE visits ADD COLUMN service_request_id INTEGER"))
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        print(f"Error adding service_request_id: {e}")
-        
-    try:
-        db.execute(text("ALTER TABLE service_requests ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        print(f"Error adding created_at: {e}")
-
-    try:
-        db.execute(text("ALTER TABLE service_requests ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        print(f"Error adding updated_at: {e}")
-
-    return {"message": "DB Fixed"}
 
 
+
+from database import SessionLocal
+
+def perform_matching_background(request_id: int, category_id: str, lat: float, lon: float):
+    db = SessionLocal()
+    try:
+        matches = find_matching_technicians(
+            category_id=category_id,
+            latitude=lat,
+            longitude=lon,
+            db=db
+        )
+        tech_ids = [m["user_id"] for m in matches]
+        count = notify_matching_technicians(tech_ids, request_id, db)
+        logger.info(f"Matching completed for request {request_id}: {count} technicians notified")
+    except Exception as e:
+        logger.error(f"Matching error for request {request_id}: {e}")
+    finally:
+        db.close()
 
 @router.post("")
 def create_service_request(
     request_data: ServiceRequestCreate,
+    background_tasks: BackgroundTasks,
     authorization: Optional[str] = Header(None, alias="Authorization"),
     db: Session = Depends(get_db)
 ):
@@ -80,19 +69,14 @@ def create_service_request(
     db.commit()
     db.refresh(new_request)
 
-    # --- ON-DEMAND MATCHING ---
-    try:
-        matches = find_matching_technicians(
-            category_id=new_request.category_id,
-            latitude=new_request.latitude,
-            longitude=new_request.longitude,
-            db=db
-        )
-        tech_ids = [m["user_id"] for m in matches]
-        count = notify_matching_technicians(tech_ids, new_request.id, db)
-        logger.info(f"Matching completed for request {new_request.id}: {count} technicians notified")
-    except Exception as e:
-        logger.error(f"Matching error for request {new_request.id}: {e}")
+    # --- ON-DEMAND MATCHING (Asíncrono) ---
+    background_tasks.add_task(
+        perform_matching_background,
+        new_request.id,
+        new_request.category_id,
+        new_request.latitude,
+        new_request.longitude
+    )
     # --------------------------
 
     return serialize_service_request(new_request, db)
@@ -105,25 +89,18 @@ def get_my_requests(
     db: Session = Depends(get_db),
 ):
     """Returns requests belonging to the authenticated client, with optional status filter."""
-    try:
-        user = get_current_user(authorization, db)
-        query = db.query(ServiceRequest).options(
-            selectinload(ServiceRequest.client),
-            selectinload(ServiceRequest.applications).selectinload(Application.technician),
-            selectinload(ServiceRequest.visit)
-        ).filter(ServiceRequest.client_id == user.id)
-        if status_filter:
-            query = query.filter(ServiceRequest.status == status_filter)
-        requests_list = query.order_by(ServiceRequest.created_at.desc()).all()
-        data = [serialize_service_request(r, db) for r in requests_list]
-        from fastapi.responses import JSONResponse
-        return JSONResponse(content=data)
-    except Exception as e:
-        import traceback
-        error_msg = traceback.format_exc()
-        logger.error(f"Error in my-requests: {error_msg}")
-        from fastapi.responses import JSONResponse
-        return JSONResponse(status_code=500, content={"success": False, "message": f"DEBUG ERROR: {str(e)} | Trace: {error_msg}"})
+    user = get_current_user(authorization, db)
+    query = db.query(ServiceRequest).options(
+        selectinload(ServiceRequest.client),
+        selectinload(ServiceRequest.applications).selectinload(Application.technician),
+        selectinload(ServiceRequest.visit)
+    ).filter(ServiceRequest.client_id == user.id)
+    if status_filter:
+        query = query.filter(ServiceRequest.status == status_filter)
+    requests_list = query.order_by(ServiceRequest.created_at.desc()).all()
+    data = [serialize_service_request(r, db) for r in requests_list]
+    from fastapi.responses import JSONResponse
+    return JSONResponse(content=data)
 
 
 @router.get("")

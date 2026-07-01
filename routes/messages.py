@@ -3,6 +3,7 @@ from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 
 from database import get_db, Message, ServiceRequest, User, Application
@@ -10,7 +11,6 @@ from auth import get_current_user
 from services.push_notifications import send_push_to_user
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/api/messages", tags=["messages"])
 
 
@@ -34,14 +34,17 @@ def serialize_message(msg: Message, db: Session) -> dict:
 
 
 def can_access_conversation(user: User, service_request: ServiceRequest, db: Session) -> bool:
-    """Only the client who created the request OR an accepted/applied technician can chat."""
+    """VULNERABILIDAD CORREGIDA: Solo el cliente y el técnico ACEPTADO pueden acceder al chat."""
     if service_request.client_id == user.id:
         return True
-    # Check if the technician has applied or been accepted
+        
+    # Validar que el técnico esté explícitamente aceptado
     app = db.query(Application).filter(
         Application.service_request_id == service_request.id,
         Application.technician_id == user.id,
+        Application.status == "accepted"
     ).first()
+    
     return app is not None
 
 
@@ -53,23 +56,29 @@ def get_conversation(
 ):
     user = get_current_user(authorization, db)
     service_request = db.query(ServiceRequest).filter(ServiceRequest.id == service_request_id).first()
+    
     if not service_request:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+        
     if not can_access_conversation(user, service_request, db):
-        raise HTTPException(status_code=403, detail="No tienes acceso a esta conversación")
+        raise HTTPException(status_code=403, detail="No tienes acceso a esta conversación (Solo el técnico asignado puede chatear)")
 
     messages = (
         db.query(Message)
         .filter(Message.service_request_id == service_request_id)
         .order_by(Message.created_at.asc())
+        .with_for_update() # Bloqueo pesimista para evitar lecturas fantasmas mientras se marcan como leídos
         .all()
     )
 
-    # Mark unread messages as read for the current user
-    for msg in messages:
-        if msg.sender_id != user.id and not msg.is_read:
-            msg.is_read = True
-    db.commit()
+    # Marcar como leídos
+    try:
+        for msg in messages:
+            if msg.sender_id != user.id and not msg.is_read:
+                msg.is_read = True
+        db.commit()
+    except IntegrityError:
+        db.rollback()
 
     return {
         "service_request_id": service_request_id,
@@ -86,10 +95,13 @@ def send_message(
 ):
     user = get_current_user(authorization, db)
     service_request = db.query(ServiceRequest).filter(ServiceRequest.id == data.service_request_id).first()
+    
     if not service_request:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+        
     if not can_access_conversation(user, service_request, db):
-        raise HTTPException(status_code=403, detail="No tienes acceso a esta conversación")
+        raise HTTPException(status_code=403, detail="No tienes acceso a esta conversación (Solo el técnico asignado puede enviar mensajes)")
+        
     if not data.content.strip():
         raise HTTPException(status_code=400, detail="El mensaje no puede estar vacío")
 
@@ -100,13 +112,18 @@ def send_message(
         created_at=datetime.utcnow(),
     )
     db.add(msg)
-    db.commit()
-    db.refresh(msg)
+    
+    try:
+        db.commit()
+        db.refresh(msg)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Error de base de datos al enviar mensaje")
 
-    # Notify the OTHER party in the conversation
+    # Notificar a la OTRA parte
     try:
         if user.id == service_request.client_id:
-            # Client sent → notify accepted technician
+            # Si envió el cliente, notificar al técnico aceptado
             accepted_app = db.query(Application).filter(
                 Application.service_request_id == service_request.id,
                 Application.status == "accepted"
@@ -120,7 +137,7 @@ def send_message(
                     db=db,
                 )
         else:
-            # Technician sent → notify client
+            # Si envió el técnico, notificar al cliente
             send_push_to_user(
                 user_id=service_request.client_id,
                 title=f"💬 {user.full_name}",
@@ -128,8 +145,8 @@ def send_message(
                 data={"screen": "chat", "id": str(service_request.id)},
                 db=db,
             )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Error enviando notificación push por mensaje: {e}")
 
     return serialize_message(msg, db)
 
@@ -139,11 +156,10 @@ def get_unread_count(
     authorization: Optional[str] = Header(None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    """Returns total number of unread messages for the authenticated user."""
     user = get_current_user(authorization, db)
     count = 0
+    
     if user.role == "client":
-        # If client, get all their requests
         service_requests = db.query(ServiceRequest).filter(ServiceRequest.client_id == user.id).all()
         request_ids = [r.id for r in service_requests]
         if request_ids:
@@ -152,9 +168,13 @@ def get_unread_count(
                 Message.is_read == False,
                 Message.service_request_id.in_(request_ids)
             ).count()
+            
     elif user.role == "technician":
-        # If technician, get all requests they applied to
-        applications = db.query(Application).filter(Application.technician_id == user.id).all()
+        # VULNERABILIDAD CORREGIDA: Contar unread messages SOLO de trabajos asignados, no de los pendientes/rechazados
+        applications = db.query(Application).filter(
+            Application.technician_id == user.id,
+            Application.status == "accepted"
+        ).all()
         request_ids = [a.service_request_id for a in applications]
         if request_ids:
             count = db.query(Message).filter(

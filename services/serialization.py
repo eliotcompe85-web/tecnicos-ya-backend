@@ -161,9 +161,4 @@ def serialize_review(review: Review, db: Session = None) -> Dict:
     }
 
 
-def sqlalchemy_to_dict(obj):
-    if obj is None:
-        return None
-    from fastapi.encoders import jsonable_encoder
-    data = {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
-    return jsonable_encoder(data)
+# (sqlalchemy_to_dict function removed for security reasons)

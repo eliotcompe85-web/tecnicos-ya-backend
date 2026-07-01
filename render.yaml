@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: tecnicos-ya-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tecnicos-ya-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: EXPO_ACCESS_TOKEN
+        sync: false
+
+databases:
+  - name: tecnicos-ya-db
+    databaseName: tecnicos_ya
+    user: tecnicos_admin
+    plan: free

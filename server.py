@@ -67,12 +67,21 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={"success": False, "message": "Datos inválidos", "errors": exc.errors()},
     )
 
+import uuid
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Error no manejado: {exc}", exc_info=True)
+    error_id = str(uuid.uuid4())[:8]
+    logger.error(f"[ErrorID: {error_id}] Error no manejado en {request.url}: {exc}", exc_info=True)
+    
+    import config
+    if getattr(config, "ENVIRONMENT", "development") != "production":
+        msg = f"Error Interno: {str(exc)}"
+    else:
+        msg = f"Error interno del servidor. Referencia para soporte: {error_id}"
+
     return JSONResponse(
         status_code=500,
-        content={"success": False, "message": "Error interno del servidor"},
+        content={"success": False, "message": msg},
     )
 # ------------------------------------
 
@@ -231,8 +240,10 @@ def startup():
     except Exception as e:
         import traceback
         startup_error = traceback.format_exc()
-        logger.error(f"Error fatal durante el startup: {e}", exc_info=True)
-        # No crasheamos la app, permitimos que siga corriendo para que Railway no de 502
+        logger.critical(f"FATAL: Error conectando a la base de datos al arrancar: {e}", exc_info=True)
+        import config
+        if getattr(config, "ENVIRONMENT", "development") == "production":
+            raise RuntimeError("Fallo crítico en el arranque del servidor.") from e
 
 @legacy.get("/debug/error")
 def get_debug_error():

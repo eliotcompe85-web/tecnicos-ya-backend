@@ -66,7 +66,6 @@ class VisitCreate(BaseModel):
 
 
 class ServiceRequestCreate(BaseModel):
-    client_id: Optional[int] = None
     category_id: Union[str, int]
     title: str
     description: str
